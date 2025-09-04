@@ -10,6 +10,7 @@ import (
 
 	"github.com/smartcontractkit/chainlink-common/pkg/logger"
 	"github.com/smartcontractkit/chainlink-common/pkg/services"
+	commonutils "github.com/smartcontractkit/chainlink-common/pkg/utils"
 
 	"github.com/smartcontractkit/chainlink-ton/pkg/logpoller/types"
 )
@@ -27,12 +28,13 @@ type service struct {
 	services.Service
 	eng *services.Engine // Service engine for lifecycle management
 
-	lggr    logger.SugaredLogger // Logger instance
-	client  ton.APIClientWrapped // TON blockchain client
-	filters FilterStore          // Registry of active filters
-	loader  TxLoader             // Transaction loader returning loaded txs
-	parser  TxParser             // Transaction parser returning logs
-	store   LogStore             // Log storage (MVP: in-memory, to be replaced with ORM)
+	lggr   logger.SugaredLogger                           // Logger instance
+	client *commonutils.LazyLoadCtx[ton.APIClientWrapped] // TON blockchain client lazy getter
+
+	filters FilterStore // Registry of active filters
+	loader  TxLoader    // Transaction loader returning loaded txs
+	parser  TxParser    // Transaction parser returning logs
+	store   LogStore    // Log storage (MVP: in-memory, to be replaced with ORM)
 
 	pollPeriod         time.Duration // How often to poll for new blocks
 	lastProcessedBlock uint32        // Last processed masterchain sequence number
@@ -40,7 +42,6 @@ type service struct {
 
 type ServiceOptions struct {
 	Config   Config
-	Client   ton.APIClientWrapped
 	Filters  FilterStore
 	TxLoader TxLoader
 	TxParser TxParser
@@ -48,10 +49,10 @@ type ServiceOptions struct {
 }
 
 // NewService creates a new TON log polling service instance
-func NewService(lggr logger.Logger, opts *ServiceOptions) Service {
+func NewService(lggr logger.Logger, client func(context.Context) (ton.APIClientWrapped, error), opts *ServiceOptions) Service {
 	lp := &service{
 		lggr:       logger.Sugared(lggr),
-		client:     opts.Client,
+		client:     commonutils.NewLazyLoadCtx(client),
 		filters:    opts.Filters,
 		loader:     opts.TxLoader,
 		parser:     opts.TxParser,
@@ -76,6 +77,10 @@ func (lp *service) start(_ context.Context) error {
 	return nil
 }
 
+func (lp *service) getClient(ctx context.Context) (ton.APIClientWrapped, error) {
+	return lp.client.Get(ctx)
+}
+
 // run executes a single polling iteration:
 // 1. Gets the current masterchain head
 // 2. Processes new blocks since the last processed sequence number
@@ -87,7 +92,11 @@ func (lp *service) run(ctx context.Context) (err error) {
 		}
 	}()
 
-	blockRange, err := lp.getMasterchainBlockRange(ctx)
+	cl, err := lp.getClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %w", err)
+	}
+	blockRange, err := lp.getMasterchainBlockRange(ctx, cl)
 	if err != nil {
 		return fmt.Errorf("failed to get masterchain block range: %w", err)
 	}
@@ -106,7 +115,7 @@ func (lp *service) run(ctx context.Context) (err error) {
 		return nil
 	}
 
-	if err := lp.processBlockRange(ctx, blockRange, addresses); err != nil {
+	if err := lp.processBlockRange(ctx, cl, blockRange, addresses); err != nil {
 		return fmt.Errorf("failed to process block range: %w", err)
 	}
 
@@ -116,13 +125,13 @@ func (lp *service) run(ctx context.Context) (err error) {
 
 // getMasterchainBlockRange calculates the range of blocks that need to be processed.
 // Returns nil if there are no new blocks to process.
-func (lp *service) getMasterchainBlockRange(ctx context.Context) (*types.BlockRange, error) {
+func (lp *service) getMasterchainBlockRange(ctx context.Context, cl ton.APIClientWrapped) (*types.BlockRange, error) {
 	lastProcessedBlock, err := lp.getLastProcessedBlock()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last processed block: %w", err)
 	}
 
-	toBlock, err := lp.client.CurrentMasterchainInfo(ctx)
+	toBlock, err := cl.CurrentMasterchainInfo(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current masterchain info: %w", err)
 	}
@@ -134,7 +143,7 @@ func (lp *service) getMasterchainBlockRange(ctx context.Context) (*types.BlockRa
 
 	lp.lggr.Debugf("new block found, processing range (%d, %d]", lastProcessedBlock, toBlock.SeqNo)
 
-	prevBlock, err := lp.resolvePreviousBlock(ctx, lastProcessedBlock, toBlock)
+	prevBlock, err := lp.resolvePreviousBlock(ctx, cl, lastProcessedBlock, toBlock)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve previous block: %w", err)
 	}
@@ -156,7 +165,7 @@ func (lp *service) getLastProcessedBlock() (uint32, error) {
 }
 
 // resolvePreviousBlock determines the previous block reference based on the last processed sequence number
-func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockSeqNo uint32, toBlock *ton.BlockIDExt) (*ton.BlockIDExt, error) {
+func (lp *service) resolvePreviousBlock(ctx context.Context, cl ton.APIClientWrapped, lastProcessedBlockSeqNo uint32, toBlock *ton.BlockIDExt) (*ton.BlockIDExt, error) {
 	if lastProcessedBlockSeqNo == 0 {
 		// TODO: we shouldn't process from genesis, but rather have a pointer for starting point
 		lp.lggr.Debugw("First run detected, processing from genesis", "toSeq", toBlock.SeqNo)
@@ -164,7 +173,7 @@ func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockS
 	}
 
 	// get the prevBlock based on the last processed sequence number
-	prevBlock, err := lp.client.LookupBlock(ctx, toBlock.Workchain, toBlock.Shard, lastProcessedBlockSeqNo)
+	prevBlock, err := cl.LookupBlock(ctx, toBlock.Workchain, toBlock.Shard, lastProcessedBlockSeqNo)
 	if err != nil {
 		return nil, fmt.Errorf("LookupBlock for previous seqno %d: %w", lastProcessedBlockSeqNo, err)
 	}
@@ -172,9 +181,9 @@ func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockS
 }
 
 // processBlockRange handles scanning a range of blocks for transactions
-func (lp *service) processBlockRange(ctx context.Context, blockRange *types.BlockRange, addresses []*address.Address) error {
+func (lp *service) processBlockRange(ctx context.Context, cl ton.APIClientWrapped, blockRange *types.BlockRange, addresses []*address.Address) error {
 	// 1. Load raw transactions with blocks from the blockchain
-	txs, err := lp.loader.LoadTxsForAddresses(ctx, blockRange, addresses)
+	txs, err := lp.loader.LoadTxsForAddresses(ctx, cl, blockRange, addresses)
 	if err != nil {
 		return fmt.Errorf("failed to load transactions: %w", err)
 	}
@@ -238,16 +247,20 @@ func (lp *service) GetStore() LogStore {
 }
 
 func (lp *service) Replay(ctx context.Context, fromBlock uint32) error {
+	cl, err := lp.getClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get client: %w", err)
+	}
 	// TODO(2025-08-28@jadepark-dev): clean up, forcing replay for e2e now
 
-	toBlock, err := lp.client.CurrentMasterchainInfo(ctx)
+	toBlock, err := cl.CurrentMasterchainInfo(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get current masterchain info: %w", err)
 	}
 	blockRange := &types.BlockRange{Prev: nil, To: toBlock}
 	var prevBlock *ton.BlockIDExt
 	if fromBlock != 0 {
-		prevBlock, err = lp.client.LookupBlock(ctx, toBlock.Workchain, toBlock.Shard, fromBlock)
+		prevBlock, err = cl.LookupBlock(ctx, toBlock.Workchain, toBlock.Shard, fromBlock)
 		if err != nil {
 			return fmt.Errorf("LookupBlock for previous seqno %d: %w", fromBlock, err)
 		}
@@ -266,7 +279,7 @@ func (lp *service) Replay(ctx context.Context, fromBlock uint32) error {
 	}
 
 	// process block range
-	if err := lp.processBlockRange(ctx, blockRange, addresses); err != nil {
+	if err := lp.processBlockRange(ctx, cl, blockRange, addresses); err != nil {
 		return fmt.Errorf("failed to process block range: %w", err)
 	}
 

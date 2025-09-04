@@ -125,14 +125,20 @@ func newChain(cfg *config.TOMLConfig, loopKs loop.Keystore, lggr logger.Logger, 
 	fs := inmemorystore.NewFilterStore()
 	lgOpts := &logpoller.ServiceOptions{
 		Config:   lgCfg,
-		Client:   tonClient,
 		Filters:  fs,
-		TxLoader: account.NewTxLoader(tonClient, lggr, lgCfg.PageSize),
+		TxLoader: account.NewTxLoader(lggr, lgCfg.PageSize),
 		TxParser: txparser.NewTxParser(lggr, fs),
 		Store:    inmemorystore.NewLogStore(),
 	}
 
-	ch.lp = logpoller.NewService(lggr, lgOpts)
+	ch.lp = logpoller.NewService(lggr, func(ctx context.Context) (ton.APIClientWrapped, error) {
+		cl, err := ch.GetClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get client: %w", err)
+		}
+		return cl, nil
+	}, lgOpts)
+
 	// TODO: Setup accounts balance monitor
 
 	return ch, nil

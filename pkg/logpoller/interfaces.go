@@ -5,6 +5,7 @@ import (
 
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
+	"github.com/xssnick/tonutils-go/ton"
 
 	"github.com/smartcontractkit/chainlink-common/pkg/services"
 
@@ -40,7 +41,7 @@ type FilterStore interface {
 type TxLoader interface {
 	// LoadTxsForAddresses retrieves all transactions from the specified source addresses
 	// within the given block range (prevBlock, toBlock] - exclusive of prevBlock, inclusive of toBlock.
-	LoadTxsForAddresses(ctx context.Context, blockRange *types.BlockRange, srcAddrs []*address.Address) ([]types.TxWithBlock, error)
+	LoadTxsForAddresses(ctx context.Context, client ton.APIClientWrapped, blockRange *types.BlockRange, srcAddrs []*address.Address) ([]types.TxWithBlock, error)
 }
 
 // TxParser defines the interface for parsing raw blockchain transactions into structured logs.
