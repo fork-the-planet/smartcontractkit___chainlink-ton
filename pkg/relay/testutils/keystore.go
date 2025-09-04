@@ -60,7 +60,3 @@ func (tk *TestKeystore) Accounts(ctx context.Context) ([]string, error) {
 	}
 	return accounts, nil
 }
-
-func (tk *TestKeystore) Decrypt(ctx context.Context, account string, encrypted []byte) (decrypted []byte, err error) {
-	return nil, errors.New("decrypt not implemented in test keystore")
-}
