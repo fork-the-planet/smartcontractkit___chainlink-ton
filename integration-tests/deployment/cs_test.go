@@ -1,6 +1,7 @@
 package deployment
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/smartcontractkit/chainlink-ton/pkg/logpoller/backend/txparser"
 
 	"github.com/xssnick/tonutils-go/address"
+	"github.com/xssnick/tonutils-go/ton"
 	"go.uber.org/zap/zapcore"
 
 	commonchangeset "github.com/smartcontractkit/chainlink/deployment/common/changeset"
@@ -112,13 +114,17 @@ func TestDeploy(t *testing.T) {
 	filterStore := inmemorystore.NewFilterStore()
 	opts := &logpoller.ServiceOptions{
 		Config:   lpCfg,
-		Client:   tonChain.Client,
 		Filters:  filterStore,
-		TxLoader: account.NewTxLoader(tonChain.Client, lggr, lpCfg.PageSize),
+		TxLoader: account.NewTxLoader(lggr, lpCfg.PageSize),
 		TxParser: txparser.NewTxParser(lggr, filterStore),
 		Store:    inmemorystore.NewLogStore(),
 	}
-	lp := logpoller.NewService(lggr, opts)
+	lp := logpoller.NewService(lggr,
+		func(_ context.Context) (ton.APIClientWrapped, error) {
+			return tonChain.Client, nil
+		},
+		opts,
+	)
 	addrCodec := codec.NewAddressCodec()
 	accessor, err := chainaccessor.NewTONAccessor(lggr, ccipocr3.ChainSelector(chainSelector), tonChain.Client, lp, addrCodec)
 	require.NoError(t, err)
