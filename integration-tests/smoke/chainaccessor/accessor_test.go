@@ -1,6 +1,7 @@
 package smoke
 
 import (
+	"context"
 	"math/big"
 	"math/rand/v2"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/xssnick/tonutils-go/tlb"
+	"github.com/xssnick/tonutils-go/ton"
 	"go.uber.org/zap/zapcore"
 
 	chain_selectors "github.com/smartcontractkit/chain-selectors"
@@ -77,14 +79,16 @@ func Test_TonAccessorEventQueries(t *testing.T) {
 	filterStore := inmemorystore.NewFilterStore()
 	opts := &logpoller.ServiceOptions{
 		Config:   lpCfg,
-		Client:   tonChain.Client,
 		Filters:  filterStore,
-		TxLoader: account.NewTxLoader(tonChain.Client, lggr, lpCfg.PageSize),
+		TxLoader: account.NewTxLoader(lggr, lpCfg.PageSize),
 		TxParser: txparser.NewTxParser(lggr, filterStore),
 		Store:    inmemorystore.NewLogStore(),
 	}
 	lp := logpoller.NewService(
 		lggr,
+		func(_ context.Context) (ton.APIClientWrapped, error) {
+			return tonChain.Client, nil
+		},
 		opts,
 	)
 

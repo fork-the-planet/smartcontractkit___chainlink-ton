@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
+	"github.com/xssnick/tonutils-go/ton"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 
 	"github.com/smartcontractkit/chainlink-common/pkg/logger"
@@ -74,10 +75,11 @@ func Test_LogPoller(t *testing.T) {
 
 		t.Run("loading entire block range at once", func(t *testing.T) {
 			t.Parallel()
-			loader := account.NewTxLoader(client, logger.Test(t), pageSize)
+			loader := account.NewTxLoader(logger.Test(t), pageSize)
 
 			txs, berr := loader.LoadTxsForAddresses(
 				t.Context(),
+				client,
 				blockRange,
 				[]*address.Address{emitter.ContractAddress()},
 			)
@@ -101,7 +103,7 @@ func Test_LogPoller(t *testing.T) {
 			t.Parallel()
 			var allLoadedLogCells []*cell.Cell
 
-			loader := account.NewTxLoader(client, logger.Test(t), pageSize)
+			loader := account.NewTxLoader(logger.Test(t), pageSize)
 
 			// iterate block by block from prevBlock to toBlock
 			currentBlock := prevBlock
@@ -122,6 +124,7 @@ func Test_LogPoller(t *testing.T) {
 
 				loadedTxs, berr := loader.LoadTxsForAddresses(
 					t.Context(),
+					client,
 					iterRange,
 					[]*address.Address{emitter.ContractAddress()},
 				)
@@ -169,14 +172,16 @@ func Test_LogPoller(t *testing.T) {
 
 		opts := &logpoller.ServiceOptions{
 			Config:   cfg,
-			Client:   client,
 			Filters:  fs,
-			TxLoader: account.NewTxLoader(client, logger.Test(t), cfg.PageSize),
+			TxLoader: account.NewTxLoader(logger.Test(t), cfg.PageSize),
 			TxParser: txparser.NewTxParser(logger.Test(t), fs),
 			Store:    inmemorystore.NewLogStore(),
 		}
 		lp := logpoller.NewService(
 			logger.Test(t),
+			func(_ context.Context) (ton.APIClientWrapped, error) {
+				return client, nil
+			},
 			opts,
 		)
 
