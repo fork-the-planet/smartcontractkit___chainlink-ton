@@ -199,15 +199,19 @@ func (t *Txm) broadcastWithRetry(ctx context.Context, tx *Tx, msg *wallet.Messag
 	var receivedMessage *tracetracking.ReceivedMessage
 	var err error
 
-	// TODO: fix shadowed error
+	// load client
+	client, cerr := t.Client.Get(ctx)
+	if cerr != nil {
+		return fmt.Errorf("failed to get client: %w", cerr)
+	}
+
+	// try to send transaction
 	for attempt := uint(1); attempt <= t.Config.MaxSendRetryAttempts; attempt++ {
-		client, cerr := t.Client.Get(ctx)
-		if cerr == nil {
-			_, _, rmerr := client.SendWaitTransaction(ctx, tx.To, msg)
-			if rmerr == nil {
-				t.Logger.Infow("transaction broadcasted", "to", tx.To.String(), "amount", tx.Amount.Nano().String())
-				break
-			}
+		receivedMessage, _, err = client.SendWaitTransaction(ctx, tx.To, msg)
+
+		if err == nil {
+			t.Logger.Infow("transaction broadcasted", "to", tx.To.String(), "amount", tx.Amount.Nano().String())
+			break
 		}
 
 		t.Logger.Warnw("failed to broadcast tx, will retry", "attempt", attempt, "err", err, "to", tx.To.String())
@@ -233,10 +237,6 @@ func (t *Txm) broadcastWithRetry(ctx context.Context, tx *Tx, msg *wallet.Messag
 	lamportTimeSecs := lamportTime / 1000
 	expirationTimestampSecs := lamportTimeSecs + uint64(t.Config.SendRetryDelay.Seconds())
 
-	client, err := t.Client.Get(ctx)
-	if err != nil {
-		return err
-	}
 	walletAddr := client.Wallet.Address().String()
 	txStore := t.AccountStore.GetTxStore(walletAddr)
 	if txStore == nil {
