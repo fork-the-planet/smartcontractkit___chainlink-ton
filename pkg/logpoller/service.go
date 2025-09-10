@@ -81,10 +81,6 @@ func (lp *service) start(_ context.Context) error {
 	return nil
 }
 
-func (lp *service) getClient(ctx context.Context) (ton.APIClientWrapped, error) {
-	return lp.client.Get(ctx)
-}
-
 // run executes a single polling iteration:
 // 1. Gets the current masterchain head
 // 2. Processes new blocks since the last processed sequence number
@@ -126,7 +122,7 @@ func (lp *service) run(ctx context.Context) (err error) {
 // getMasterchainBlockRange calculates the range of blocks that need to be processed.
 // Returns nil if there are no new blocks to process.
 func (lp *service) getMasterchainBlockRange(ctx context.Context) (*types.BlockRange, error) {
-	client, err := lp.getClient(ctx)
+	client, err := lp.client.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
@@ -195,7 +191,7 @@ func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockS
 		return nil, nil
 	}
 
-	client, err := lp.getClient(ctx)
+	client, err := lp.client.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
@@ -209,7 +205,7 @@ func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockS
 
 // processBlockRange handles scanning a range of blocks for transactions
 func (lp *service) processBlockRange(ctx context.Context, blockRange *types.BlockRange, addresses []*address.Address) error {
-	client, err := lp.getClient(ctx)
+	client, err := lp.client.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}
@@ -303,7 +299,7 @@ func computeLookbackWindow(currentSeqNo uint32, lookbackDuration time.Duration, 
 }
 
 func (lp *service) Replay(ctx context.Context, fromBlock uint32) error {
-	client, err := lp.getClient(ctx)
+	client, err := lp.client.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}

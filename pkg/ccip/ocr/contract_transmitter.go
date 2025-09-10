@@ -109,7 +109,7 @@ func (c *ccipTransmitter) Transmit(
 		FromWallet:      w,
 		ContractAddress: *address.MustParseAddr(c.offrampAddress),
 		Body:            body,
-		Amount:          tlb.MustFromTON("0.05"),
+		Amount:          tlb.MustFromTON("0.05"), // TODO: make this configurable
 	}
 
 	c.lggr.Infow("Submitting transaction", "address", c.offrampAddress, "method", method)
