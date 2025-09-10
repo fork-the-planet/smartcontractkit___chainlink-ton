@@ -13,6 +13,8 @@ import (
 	"github.com/xssnick/tonutils-go/ton"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/smartcontractkit/chainlink-ton/deployment/ccip/sequence"
+
 	"github.com/smartcontractkit/chainlink-ton/deployment/ccip/config"
 	test_utils "github.com/smartcontractkit/chainlink-ton/deployment/utils"
 
@@ -65,7 +67,7 @@ func Test_TonAccessorEventQueries(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// -- deploy contracts
-	cs := commonchangeset.Configure(ops.DeployCCIPContracts{}, ops.DeployChainContractsConfig(t, env, chainSelector))
+	cs := commonchangeset.Configure(ops.DeployCCIPContracts{}, ops.DeployChainContractsConfig(t, env, chainSelector, sequence.ContractsLocalVersion))
 	env, _, err := commonchangeset.ApplyChangesets(t, env, []commonchangeset.ConfiguredChangeSet{cs})
 	require.NoError(t, err, "failed to deploy ccip")
 
