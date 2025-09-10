@@ -59,9 +59,9 @@ func NewService(lggr logger.Logger, client func(context.Context) (ton.APIClientW
 		loader:           opts.TxLoader,
 		parser:           opts.TxParser,
 		store:            opts.Store,
-		pollPeriod:       opts.Config.PollPeriod,
-		startingLookback: opts.Config.LogPollerStartingLookback,
-		blockTime:        opts.Config.BlockTime,
+		pollPeriod:       opts.Config.PollPeriod.Duration(),
+		startingLookback: opts.Config.LogPollerStartingLookback.Duration(),
+		blockTime:        opts.Config.BlockTime.Duration(),
 	}
 	lp.Service, lp.eng = services.Config{
 		Name:  "TONLogPoller",
