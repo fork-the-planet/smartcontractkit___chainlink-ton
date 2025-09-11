@@ -39,10 +39,5 @@ pkgs.mkShell {
   shellHook = ''
     # use upstream golangci-lint config from core Chainlink repository, overriding the local prefixes
     alias golint="golangci-lint run --config <(curl -sSL https://raw.githubusercontent.com/smartcontractkit/chainlink/develop/.golangci.yml | yq e '.formatters.settings.goimports.local-prefixes = [\"github.com/smartcontractkit/chainlink-ton\"]' -) --path-mode \"abs\""
-    echo "" >&2
-    echo "You can lint your code with:" >&2
-    echo "    cd pkg && golint ./..." >&2
-    echo "    cd integration-tests && golint ./..." >&2
-    echo "" >&2
   '';
 }
