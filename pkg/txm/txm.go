@@ -56,12 +56,12 @@ type Request struct {
 	StateInit       *cell.Cell      // Optional: contract deploy init
 }
 
-func New(lgr logger.Logger, keystore loop.Keystore, client func(context.Context) (tracetracking.SignedAPIClient, error), config Config) *Txm {
+func New(lgr logger.Logger, keystore loop.Keystore, clientProvider func(context.Context) (tracetracking.SignedAPIClient, error), config Config) *Txm {
 	txm := &Txm{
 		logger:         logger.Named(lgr, "Txm"),
 		keystore:       keystore,
 		config:         config,
-		clientProvider: client,
+		clientProvider: clientProvider,
 		broadcastChan:  make(chan *Tx, config.BroadcastChanSize),
 		accountStore:   NewAccountStore(),
 		stop:           make(chan struct{}),
