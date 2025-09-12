@@ -11,7 +11,6 @@ import (
 
 	"github.com/smartcontractkit/chainlink-common/pkg/logger"
 	"github.com/smartcontractkit/chainlink-common/pkg/services"
-	commonutils "github.com/smartcontractkit/chainlink-common/pkg/utils"
 
 	"github.com/smartcontractkit/chainlink-ton/pkg/logpoller/types"
 )
@@ -27,9 +26,9 @@ import (
 // external messages from registered filter addresses.
 type service struct {
 	services.Service
-	eng    *services.Engine                               // Service engine for lifecycle management
-	lggr   logger.SugaredLogger                           // Logger instance
-	client *commonutils.LazyLoadCtx[ton.APIClientWrapped] // TON blockchain client lazy getter
+	eng            *services.Engine                                    // Service engine for lifecycle management
+	lggr           logger.SugaredLogger                                // Logger instance
+	clientProvider func(context.Context) (ton.APIClientWrapped, error) // TON blockchain client lazy getter
 
 	filters FilterStore // Registry of active filters
 	loader  TxLoader    // Transaction loader returning loaded txs
@@ -54,7 +53,7 @@ type ServiceOptions struct {
 func NewService(lggr logger.Logger, client func(context.Context) (ton.APIClientWrapped, error), opts *ServiceOptions) Service {
 	lp := &service{
 		lggr:             logger.Sugared(lggr),
-		client:           commonutils.NewLazyLoadCtx(client),
+		clientProvider:   client,
 		filters:          opts.Filters,
 		loader:           opts.TxLoader,
 		parser:           opts.TxParser,
@@ -122,7 +121,7 @@ func (lp *service) run(ctx context.Context) (err error) {
 // getMasterchainBlockRange calculates the range of blocks that need to be processed.
 // Returns nil if there are no new blocks to process.
 func (lp *service) getMasterchainBlockRange(ctx context.Context) (*types.BlockRange, error) {
-	client, err := lp.client.Get(ctx)
+	client, err := lp.clientProvider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
@@ -191,7 +190,7 @@ func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockS
 		return nil, nil
 	}
 
-	client, err := lp.client.Get(ctx)
+	client, err := lp.clientProvider(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get client: %w", err)
 	}
@@ -205,13 +204,8 @@ func (lp *service) resolvePreviousBlock(ctx context.Context, lastProcessedBlockS
 
 // processBlockRange handles scanning a range of blocks for transactions
 func (lp *service) processBlockRange(ctx context.Context, blockRange *types.BlockRange, addresses []*address.Address) error {
-	client, err := lp.client.Get(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client: %w", err)
-	}
-
 	// 1. Load raw transactions with blocks from the blockchain
-	txs, err := lp.loader.LoadTxsForAddresses(ctx, client, blockRange, addresses)
+	txs, err := lp.loader.LoadTxsForAddresses(ctx, blockRange, addresses)
 	if err != nil {
 		return fmt.Errorf("failed to load transactions: %w", err)
 	}
@@ -299,7 +293,7 @@ func computeLookbackWindow(currentSeqNo uint32, lookbackDuration time.Duration, 
 }
 
 func (lp *service) Replay(ctx context.Context, fromBlock uint32) error {
-	client, err := lp.client.Get(ctx)
+	client, err := lp.clientProvider(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get client: %w", err)
 	}

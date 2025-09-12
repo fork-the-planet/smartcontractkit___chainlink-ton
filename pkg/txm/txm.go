@@ -25,7 +25,6 @@ import (
 
 type TxManager interface {
 	services.Service
-
 	Enqueue(request Request) error
 	GetTransactionStatus(ctx context.Context, lt uint64) (commontypes.TransactionStatus, tvm.ExitCode, tlb.Coins, error)
 	GetClient(ctx context.Context) (tracetracking.SignedAPIClient, error)
@@ -39,12 +38,12 @@ type Txm struct {
 	keystore loop.Keystore
 	config   Config
 
-	client        *commonutils.LazyLoadCtx[tracetracking.SignedAPIClient]
-	broadcastChan chan *Tx
-	accountStore  *AccountStore
-	atarter       commonutils.StartStopOnce
-	done          sync.WaitGroup
-	stop          services.StopChan
+	clientProvider func(context.Context) (tracetracking.SignedAPIClient, error)
+	broadcastChan  chan *Tx
+	accountStore   *AccountStore
+	starter        commonutils.StartStopOnce
+	done           sync.WaitGroup
+	stop           services.StopChan
 }
 
 type Request struct {
@@ -59,13 +58,13 @@ type Request struct {
 
 func New(lgr logger.Logger, keystore loop.Keystore, client func(context.Context) (tracetracking.SignedAPIClient, error), config Config) *Txm {
 	txm := &Txm{
-		logger:        logger.Named(lgr, "Txm"),
-		keystore:      keystore,
-		config:        config,
-		client:        commonutils.NewLazyLoadCtx(client),
-		broadcastChan: make(chan *Tx, config.BroadcastChanSize),
-		accountStore:  NewAccountStore(),
-		stop:          make(chan struct{}),
+		logger:         logger.Named(lgr, "Txm"),
+		keystore:       keystore,
+		config:         config,
+		clientProvider: client,
+		broadcastChan:  make(chan *Tx, config.BroadcastChanSize),
+		accountStore:   NewAccountStore(),
+		stop:           make(chan struct{}),
 	}
 
 	return txm
@@ -76,19 +75,19 @@ func (t *Txm) Name() string {
 }
 
 func (t *Txm) Ready() error {
-	return t.atarter.Ready()
+	return t.starter.Ready()
 }
 
 func (t *Txm) HealthReport() map[string]error {
-	return map[string]error{t.Name(): t.atarter.Healthy()}
+	return map[string]error{t.Name(): t.starter.Healthy()}
 }
 
 func (t *Txm) GetClient(ctx context.Context) (tracetracking.SignedAPIClient, error) {
-	return t.client.Get(ctx)
+	return t.clientProvider(ctx)
 }
 
 func (t *Txm) Start(ctx context.Context) error {
-	return t.atarter.StartOnce("Txm", func() error {
+	return t.starter.StartOnce("Txm", func() error {
 		t.done.Add(2) // waitgroup: broadcast loop and confirm loop
 		go t.broadcastLoop()
 		go t.confirmLoop()
@@ -101,7 +100,7 @@ func (t *Txm) InflightCount() (int, int) {
 }
 
 func (t *Txm) Close() error {
-	return t.atarter.StopOnce("Txm", func() error {
+	return t.starter.StopOnce("Txm", func() error {
 		close(t.stop)
 		t.done.Wait()
 		return nil
@@ -200,7 +199,7 @@ func (t *Txm) broadcastWithRetry(ctx context.Context, tx *Tx, msg *wallet.Messag
 	var err error
 
 	// load client
-	client, cerr := t.client.Get(ctx)
+	client, cerr := t.clientProvider(ctx)
 	if cerr != nil {
 		return fmt.Errorf("failed to get client: %w", cerr)
 	}
@@ -300,7 +299,7 @@ func (t *Txm) checkUnconfirmed(ctx context.Context) {
 			tx := unconfirmedTx.Tx
 			receivedMessage := tx.ReceivedMessage
 
-			client, err := t.client.Get(ctx)
+			client, err := t.clientProvider(ctx)
 			if err != nil {
 				t.logger.Errorw("failed to get client", "error", err)
 				continue
@@ -334,7 +333,7 @@ func (t *Txm) checkUnconfirmed(ctx context.Context) {
 
 // GetTransactionStatus translates internal TON transaction state to chainlink common statuses.
 func (t *Txm) GetTransactionStatus(ctx context.Context, lt uint64) (commontypes.TransactionStatus, tvm.ExitCode, tlb.Coins, error) {
-	client, err := t.client.Get(ctx)
+	client, err := t.clientProvider(ctx)
 	if err != nil {
 		return commontypes.Unknown, 0, tlb.ZeroCoins, fmt.Errorf("failed to get client: %w", err)
 	}

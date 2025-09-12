@@ -102,8 +102,8 @@ func newChain(cfg *config.TOMLConfig, loopKs loop.Keystore, lggr logger.Logger, 
 		clientCache: make(map[int]*cachedClient),
 	}
 
-	txmCfg := *ch.cfg.TxManager()
-	ch.txm = txm.New(lggr, loopKs, func(ctx context.Context) (tracetracking.SignedAPIClient, error) {
+	// TODO(@jadepark-dev): TXM technically doesn't need SignedAPIClient, revisit to refactor
+	signedClientProvider := commonutils.NewLazyLoadCtx(func(ctx context.Context) (tracetracking.SignedAPIClient, error) {
 		tonClient, err := ch.GetClient(ctx)
 		if err != nil {
 			return tracetracking.SignedAPIClient{}, fmt.Errorf("failed to create TON client for chain ID %s: %w", cfg.ChainID, err)
@@ -114,31 +114,34 @@ func newChain(cfg *config.TOMLConfig, loopKs loop.Keystore, lggr logger.Logger, 
 			return tracetracking.SignedAPIClient{}, fmt.Errorf("failed to get signer wallet for chain ID %s: %w", cfg.ChainID, err)
 		}
 
-		apiClient := tracetracking.SignedAPIClient{
+		return tracetracking.SignedAPIClient{
 			Client: tonClient,
 			Wallet: *signerWallet,
+		}, nil
+	})
+
+	ch.txm = txm.New(lggr, loopKs, signedClientProvider.Get, *ch.cfg.TxManager())
+
+	clientProvider := func(ctx context.Context) (ton.APIClientWrapped, error) {
+		signedClient, err := signedClientProvider.Get(ctx)
+		if err != nil {
+			return nil, err
 		}
-		return apiClient, nil
-	}, txmCfg)
+		return signedClient.Client, nil
+	}
 
 	// Get LogPoller configuration from chain config
-	lgCfg := *ch.cfg.LogPollerConfig()
+	lpCfg := *ch.cfg.LogPollerConfig()
 	fs := inmemorystore.NewFilterStore()
 	lgOpts := &logpoller.ServiceOptions{
-		Config:   lgCfg,
+		Config:   lpCfg,
 		Filters:  fs,
-		TxLoader: account.NewTxLoader(lggr, lgCfg.PageSize),
+		TxLoader: account.NewTxLoader(lggr, clientProvider, lpCfg.PageSize),
 		TxParser: txparser.NewTxParser(lggr, fs),
 		Store:    inmemorystore.NewLogStore(),
 	}
 
-	ch.lp = logpoller.NewService(lggr, func(ctx context.Context) (ton.APIClientWrapped, error) {
-		cl, err := ch.GetClient(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get client: %w", err)
-		}
-		return cl, nil
-	}, lgOpts)
+	ch.lp = logpoller.NewService(lggr, clientProvider, lgOpts)
 
 	// TODO: Setup accounts balance monitor
 

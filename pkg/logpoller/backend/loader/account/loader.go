@@ -25,26 +25,30 @@ var _ logpoller.TxLoader = (*accountTxLoader)(nil)
 
 // TODO(NONEVM-2188): refactor as subengine, with background workers for production scalability
 type accountTxLoader struct {
-	lggr     logger.SugaredLogger // Logger for debugging and monitoring
-	pageSize uint32               // Number of transactions to fetch per API call
+	lggr           logger.SugaredLogger                                // Logger for debugging and monitoring
+	clientProvider func(context.Context) (ton.APIClientWrapped, error) // TON blockchain client lazy getter
+	pageSize       uint32                                              // Number of transactions to fetch per API call
 }
 
 // NewTxLoader creates a new MessageLoader instance
 func NewTxLoader(
 	lggr logger.Logger,
+	clientProvider func(context.Context) (ton.APIClientWrapped, error),
 	pageSize uint32,
 ) logpoller.TxLoader {
 	// TODO(NONEVM-2188): add background worker pool initializaion here
 	return &accountTxLoader{
-		lggr:     logger.Sugared(lggr),
-		pageSize: pageSize,
+		lggr:           logger.Sugared(lggr),
+		clientProvider: clientProvider,
+		pageSize:       pageSize,
 	}
 }
 
 // LoadTxsForAddresses scans TON blockchain for transactions from specified addresses
 // between prevBlock(exclusive) and toBlock(inclusive)
 // TODO(NONEVM-2188): refactor to use background workers for scale in production
-func (l *accountTxLoader) LoadTxsForAddresses(ctx context.Context, client ton.APIClientWrapped, blockRange *types.BlockRange, srcAddrs []*address.Address) ([]types.TxWithBlock, error) {
+// TODO(@jadepark-dev): manage process in service.go, keep loader pure and reusable
+func (l *accountTxLoader) LoadTxsForAddresses(ctx context.Context, blockRange *types.BlockRange, srcAddrs []*address.Address) ([]types.TxWithBlock, error) {
 	var allTxs []types.TxWithBlock
 	var mu sync.Mutex
 
@@ -60,7 +64,7 @@ func (l *accountTxLoader) LoadTxsForAddresses(ctx context.Context, client ton.AP
 	for _, addr := range srcAddrs {
 		currAddr := addr
 		eg.Go(func() error {
-			txs, err := l.fetchTxsForAddress(egCtx, client, blockRange, currAddr)
+			txs, err := l.FetchTxsForAddress(egCtx, blockRange, currAddr)
 			if err != nil {
 				return fmt.Errorf("failed to fetch for %s: %w", currAddr.String(), err)
 			}
@@ -80,7 +84,7 @@ func (l *accountTxLoader) LoadTxsForAddresses(ctx context.Context, client ton.AP
 	return allTxs, nil
 }
 
-// fetchTxsForAddress retrieves transactions for a specific address within a block range.
+// FetchTxsForAddress retrieves transactions for a specific address within a block range.
 // Uses TON's account-based transaction model with logical time (LT) bounds for efficient scanning.
 //
 // The method:
@@ -90,11 +94,12 @@ func (l *accountTxLoader) LoadTxsForAddresses(ctx context.Context, client ton.AP
 //
 // Note: Block range (prevBlock, toBlock] is exclusive of prevBlock, inclusive of toBlock
 // TODO: stream tx back to log poller to avoid memory overhead in production
-func (l *accountTxLoader) fetchTxsForAddress(ctx context.Context, client ton.APIClientWrapped, blockRange *types.BlockRange, addr *address.Address) ([]types.TxWithBlock, error) {
+func (l *accountTxLoader) FetchTxsForAddress(ctx context.Context, blockRange *types.BlockRange, addr *address.Address) ([]types.TxWithBlock, error) {
 	if blockRange.Prev != nil && blockRange.Prev.SeqNo >= blockRange.To.SeqNo {
 		return nil, fmt.Errorf("prevBlock %d is not before toBlock %d", blockRange.Prev.SeqNo, blockRange.To.SeqNo)
 	}
-	startLT, endLT, endHash, err := l.getTransactionBounds(ctx, client, addr, blockRange)
+
+	startLT, endLT, endHash, err := l.getTransactionBounds(ctx, addr, blockRange)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction bounds for %s: %w", addr.String(), err)
 	}
@@ -108,7 +113,7 @@ func (l *accountTxLoader) fetchTxsForAddress(ctx context.Context, client ton.API
 	curLT, curHash := endLT, endHash
 
 	for {
-		batch, blocks, err := l.listTransactionsWithBlock(ctx, client, addr, l.pageSize, curLT, curHash)
+		batch, blocks, err := l.listTransactionsWithBlock(ctx, addr, l.pageSize, curLT, curHash)
 		if errors.Is(err, ton.ErrNoTransactionsWereFound) || len(batch) == 0 {
 			// no more transactions to process
 			break
@@ -163,7 +168,11 @@ func (l *accountTxLoader) fetchTxsForAddress(ctx context.Context, client ton.API
 //
 // prevBlock: Block where the address was last seen(already processed)
 // toBlock: Block where the scan ends
-func (l *accountTxLoader) getTransactionBounds(ctx context.Context, client ton.APIClientWrapped, addr *address.Address, blockRange *types.BlockRange) (startLT, endLT uint64, endHash []byte, err error) {
+func (l *accountTxLoader) getTransactionBounds(ctx context.Context, addr *address.Address, blockRange *types.BlockRange) (startLT, endLT uint64, endHash []byte, err error) {
+	client, err := l.clientProvider(ctx)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("failed to get client: %w", err)
+	}
 	switch {
 	case blockRange.Prev == nil:
 		startLT = 0
@@ -190,7 +199,7 @@ func (l *accountTxLoader) getTransactionBounds(ctx context.Context, client ton.A
 // It returns a list of transactions, a list of corresponding block IDs, and an error if one occurs.
 // ListTransactions - returns list of transactions before (including) passed lt and hash, the oldest one is first in result slice
 // Transactions will be verified to match final tx hash, which should be taken from proved account state, then it is safe.
-func (l *accountTxLoader) listTransactionsWithBlock(ctx context.Context, client ton.APIClientWrapped, addr *address.Address, limit uint32, lt uint64, txHash []byte) ([]*tlb.Transaction, []*ton.BlockIDExt, error) {
+func (l *accountTxLoader) listTransactionsWithBlock(ctx context.Context, addr *address.Address, limit uint32, lt uint64, txHash []byte) ([]*tlb.Transaction, []*ton.BlockIDExt, error) {
 	// unlikely to have overflow, but just for safety
 	if limit > math.MaxInt32 {
 		return nil, nil, fmt.Errorf("limit %d exceeds maximum int32 value", limit)
@@ -202,6 +211,10 @@ func (l *accountTxLoader) listTransactionsWithBlock(ctx context.Context, client 
 	var resp tl.Serializable
 	// Query TON blockchain for transactions. Note: API returns transactions in NEW to OLD order
 	// (newest transaction first, oldest last in the response)
+	client, cerr := l.clientProvider(ctx)
+	if cerr != nil {
+		return nil, nil, fmt.Errorf("failed to get client: %w", cerr)
+	}
 	err := client.Client().QueryLiteserver(ctx, ton.GetTransactions{
 		Limit: int32(limit),
 		AccID: &ton.AccountID{

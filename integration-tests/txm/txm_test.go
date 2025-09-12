@@ -55,11 +55,13 @@ func TestTxmLocal(t *testing.T) {
 }
 
 func runTxmTest(t *testing.T, logger logger.Logger, config txm.Config, tonChain cldf_ton.Chain, keystore loop.Keystore, iterations int) {
-	apiClient := tracetracking.SignedAPIClient{
-		Client: tonChain.Client,
-		Wallet: *tonChain.Wallet,
+	signedClientProvider := func(ctx context.Context) (tracetracking.SignedAPIClient, error) {
+		return tracetracking.SignedAPIClient{
+			Client: tonChain.Client,
+			Wallet: *tonChain.Wallet,
+		}, nil
 	}
-	tonTxm := txm.New(logger, keystore, func(context.Context) (tracetracking.SignedAPIClient, error) { return apiClient, nil }, config)
+	tonTxm := txm.New(logger, keystore, signedClientProvider, config)
 	err := tonTxm.Start(t.Context())
 	require.NoError(t, err)
 	defer func() {

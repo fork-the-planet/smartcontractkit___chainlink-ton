@@ -20,10 +20,9 @@ import (
 
 	chain_selectors "github.com/smartcontractkit/chain-selectors"
 	"github.com/smartcontractkit/chainlink-ccip/pkg/consts"
+	"github.com/smartcontractkit/chainlink-common/pkg/logger"
 	"github.com/smartcontractkit/chainlink-common/pkg/types/ccipocr3"
 	"github.com/smartcontractkit/chainlink-deployments-framework/chain"
-
-	"github.com/smartcontractkit/chainlink-common/pkg/logger"
 	commonchangeset "github.com/smartcontractkit/chainlink/deployment/common/changeset"
 	"github.com/smartcontractkit/chainlink/deployment/environment/memory"
 
@@ -61,6 +60,9 @@ func Test_TonAccessorEventQueries(t *testing.T) {
 	chainSelector := tonChainSelectors[0]
 	tonChain := env.BlockChains.TonChains()[chainSelector]
 	deployer := tonChain.Wallet
+	clientProvider := func(ctx context.Context) (ton.APIClientWrapped, error) {
+		return tonChain.Client, nil
+	}
 
 	// memory environment doesn't block on funding so changesets can execute before the env is fully ready, manually call fund so we block here
 	test_utils.FundWallets(t, tonChain.Client, []*address.Address{deployer.Address()}, []tlb.Coins{tlb.MustFromTON("1000")})
@@ -93,15 +95,13 @@ func Test_TonAccessorEventQueries(t *testing.T) {
 	opts := &logpoller.ServiceOptions{
 		Config:   lpCfg,
 		Filters:  filterStore,
-		TxLoader: account.NewTxLoader(lggr, lpCfg.PageSize),
+		TxLoader: account.NewTxLoader(lggr, clientProvider, lpCfg.PageSize),
 		TxParser: txparser.NewTxParser(lggr, filterStore),
 		Store:    inmemorystore.NewLogStore(),
 	}
 	lp := logpoller.NewService(
 		lggr,
-		func(_ context.Context) (ton.APIClientWrapped, error) {
-			return tonChain.Client, nil
-		},
+		clientProvider,
 		opts,
 	)
 

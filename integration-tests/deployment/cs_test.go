@@ -55,6 +55,9 @@ func TestDeploy(t *testing.T) {
 	tonChain := env.BlockChains.TonChains()[chainSelector]
 	deployer := tonChain.Wallet
 	t.Log("Deployer: ", deployer.Address().String())
+	clientProvider := func(ctx context.Context) (ton.APIClientWrapped, error) {
+		return tonChain.Client, nil
+	}
 
 	// memory environment doesn't block on funding so changesets can execute before the env is fully ready, manually call fund so we block here
 	test_utils.FundWallets(t, tonChain.Client, []*address.Address{deployer.Address()}, []tlb.Coins{tlb.MustFromTON("1000")})
@@ -115,14 +118,12 @@ func TestDeploy(t *testing.T) {
 	opts := &logpoller.ServiceOptions{
 		Config:   lpCfg,
 		Filters:  filterStore,
-		TxLoader: account.NewTxLoader(lggr, lpCfg.PageSize),
+		TxLoader: account.NewTxLoader(lggr, clientProvider, lpCfg.PageSize),
 		TxParser: txparser.NewTxParser(lggr, filterStore),
 		Store:    inmemorystore.NewLogStore(),
 	}
 	lp := logpoller.NewService(lggr,
-		func(_ context.Context) (ton.APIClientWrapped, error) {
-			return tonChain.Client, nil
-		},
+		clientProvider,
 		opts,
 	)
 	addrCodec := codec.NewAddressCodec()
