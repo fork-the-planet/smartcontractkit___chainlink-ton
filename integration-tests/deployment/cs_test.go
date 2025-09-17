@@ -2,6 +2,8 @@ package deployment
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -139,6 +141,8 @@ func TestDeploy(t *testing.T) {
 	require.NoError(t, err)
 	rawLinkAddr, err := addrCodec.AddressStringToBytes(linkAddr.String())
 	require.NoError(t, err)
+	routerAddr := state[chainSelector].Router
+	offRampAddr := state[chainSelector].OffRamp
 
 	err = accessor.Sync(ctx, consts.ContractNameOnRamp, rawOnRampAddr)
 	require.NoError(t, err)
@@ -197,5 +201,35 @@ func TestDeploy(t *testing.T) {
 			GasPriceStalenessThreshold:        0,
 			NetworkFeeUSDCents:                10,
 		}, config)
+	})
+
+	t.Run("StateView", func(t *testing.T) {
+		generatedView, err := state[chainSelector].GenerateView(&env, chainSelector, "-1")
+		require.NoError(t, err)
+		require.Equal(t, "-1", generatedView.ChainID)
+		require.Equal(t, chainSelector, generatedView.ChainSelector)
+		onRampView, exit := generatedView.OnRamp[onRampAddr.String()]
+		require.True(t, exit, "onRamp view not found")
+		require.Equal(t, onRampAddr, *onRampView.Address)
+
+		routerView, exit := generatedView.Router[routerAddr.String()]
+		require.True(t, exit, "onRamp view not found")
+		require.Equal(t, routerAddr, *routerView.Address)
+
+		feeQuoterView, exit := generatedView.FeeQuoter[feeQuoterAddr.String()]
+		require.True(t, exit, "feeQuoter view not found")
+		require.Equal(t, feeQuoterAddr, *feeQuoterView.Address)
+		destConfig, exist := feeQuoterView.DestChainConfig[ChainSelEVMTest90000001]
+		require.True(t, exist, "feeQuoter view dest config not found")
+		require.True(t, destConfig.IsEnabled)
+		require.Equal(t, uint16(10), destConfig.MaxNumberOfTokensPerMsg)
+		require.Equal(t, uint32(3000000), destConfig.MaxPerMsgGasLimit)
+
+		offRampView, exit := generatedView.OffRamp[offRampAddr.String()]
+		require.True(t, exit, "offRamp view not found")
+		require.Equal(t, offRampAddr, *offRampView.Address)
+		data, err := json.MarshalIndent(generatedView, "", "  ")
+		require.NoError(t, err)
+		fmt.Print("JSON encoded TON state view:\n" + string(data))
 	})
 }

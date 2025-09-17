@@ -6,6 +6,7 @@ import {
   Contract,
   contractAddress,
   ContractProvider,
+  Dictionary,
   Sender,
   SendMode,
   Slice,
@@ -14,11 +15,12 @@ import {
 import * as ownable2step from '../libraries/access/Ownable2Step'
 import { CellCodec } from '../utils'
 import { asSnakeData } from '../../src/utils'
+import { DestChainConfig } from './FeeQuoter'
 
 export type Storage = {
   ownable: ownable2step.Data
 
-  onRamp: Address
+  onRamps: Dictionary<bigint, Address>
 }
 
 export abstract class Params {}
@@ -127,13 +129,14 @@ export const builder = {
               ? beginCell().storeAddress(config.ownable.pendingOwner)
               : null,
           )
-          .storeAddress(config.onRamp)
+          .storeDict(config.onRamps)
+          .storeUint(64, 16) // keyLen
       },
 
       load: (src: Slice): Storage => {
         return {
           ownable: ownable2step.builder.data.traitData.load(src.loadRef().beginParse()),
-          onRamp: src.loadAddress(),
+          onRamps: Dictionary.empty(Dictionary.Keys.BigUint(64)),
         }
       },
     }
