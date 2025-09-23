@@ -39,7 +39,6 @@ export type TestContracts = {
 
 export class BaseTestSetup {
   static readonly MIN_DELAY = 24n * 60n * 60n * 7n
-  static readonly DONE_TIMESTAMP = 1n
   static readonly NO_PREDECESSOR = 0n
   static readonly EMPTY_SALT = 0n
 
@@ -167,6 +166,11 @@ export class BaseTestSetup {
       id: crc32(`mcms.timelock.${testId}`),
       minDelay: BaseTestSetup.MIN_DELAY,
       executorRoleCheckEnabled: true,
+      opPendingInfo: {
+        validAfter: 0,
+        opFinalizationTimeout: 0n,
+        opPendingId: 0n,
+      },
       rbac: ac.builder.data.contractData.encode(rbacStorage).asCell(),
     }
 
@@ -212,6 +216,7 @@ export class BaseTestSetup {
         cancellers: CANCELLERS,
         bypassers: BYPASSERS,
         executorRoleCheckEnabled: true,
+        opFinalizationTimeout: 0n,
       })
       .asCell()
     const result = await this.bind.timelock.sendInternal(

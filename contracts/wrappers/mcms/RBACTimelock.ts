@@ -16,7 +16,7 @@ import { CellCodec, sha256_32 } from '../utils'
 import { keccak256 } from '@ethersproject/keccak256'
 import { asSnakeData, fromSnakeData, uint8ArrayToBigInt } from '../../src/utils'
 
-// @dev Initializes the contract
+// Initializes the contract
 export type Init = {
   // Query ID of the change request.
   queryId: bigint
@@ -35,15 +35,17 @@ export type Init = {
 
   // Flag to enable/disable the executor role check (if disabled, anyone can execute)
   executorRoleCheckEnabled: boolean
+  // The timeout required to finalize the currently executing op
+  opFinalizationTimeout: bigint
 }
 
-// @dev Top up contract with TON coins.
+// Top up contract with TON coins.
 export type TopUp = {
   // Query ID of the change request.
   queryId: bigint
 }
 
-// @dev Schedule an operation containing a batch of transactions.
+// Schedule an operation containing a batch of transactions.
 export type ScheduleBatch = {
   // Query ID of the change request.
   queryId: bigint
@@ -58,7 +60,7 @@ export type ScheduleBatch = {
   delay: bigint
 }
 
-// @dev Cancel an operation.
+// Cancel an operation.
 export type Cancel = {
   // Query ID of the change request.
   queryId: bigint
@@ -67,7 +69,7 @@ export type Cancel = {
   id: bigint
 }
 
-// @dev Execute an (ready) operation containing a batch of transactions.
+// Execute an (ready) operation containing a batch of transactions.
 export type ExecuteBatch = {
   // Query ID of the change request.
   queryId: bigint
@@ -80,7 +82,7 @@ export type ExecuteBatch = {
   salt: bigint
 }
 
-// @dev Changes the minimum timelock duration for future operations.
+// Changes the minimum timelock duration for future operations.
 export type UpdateDelay = {
   // Query ID of the change request.
   queryId: bigint
@@ -89,7 +91,16 @@ export type UpdateDelay = {
   newDelay: number
 }
 
-// @dev Blocks a function selector from being used
+/// Changes the timeout required to finalize the currently executing op
+export type UpdateOpFinalizationTimeout = {
+  // Query ID of the change request.
+  queryId: bigint
+
+  // The timeout required to finalize the currently executing op
+  newOpFinalizationTimeout: number
+}
+
+// Blocks a function selector from being used
 export type BlockFunctionSelector = {
   // Query ID of the change request.
   queryId: bigint
@@ -98,7 +109,7 @@ export type BlockFunctionSelector = {
   selector: number
 }
 
-// @dev Unblocks a previously blocked function selector so it can be used again.
+// Unblocks a previously blocked function selector so it can be used again.
 export type UnblockFunctionSelector = {
   /// Query ID of the change request.
   queryId: bigint
@@ -125,7 +136,28 @@ export type UpdateExecutorRoleCheck = {
   enabled: boolean
 }
 
-// @dev Union of all (input) messages.
+// Submit an oracle error report, which marks an operation in error state.
+//
+// The error report is used for a category of errors which might occur during execution
+// of an operation, but can't be caught on-chain (OOG errors, and downstream tx-trace errors).
+//
+// struct (0xf4538b79) Timelock_SubmitErrorReport {
+export type SubmitErrorReport = {
+  // Query ID of the change request.
+  queryId: bigint
+
+  // The operation which produced the error (used to re-derive the op id).
+  opBatch: OperationBatch // Cell<OperationBatch>
+  // The hash of the execute transaction.
+  opTxHash: bigint
+
+  /// The hash of the transaction which errored (part of the tx trace).
+  errorTxHash: bigint
+  /// The error code.
+  errorCode: number
+}
+
+// Union of all (input) messages.
 export type InMessage =
   | Init
   | TopUp
@@ -137,6 +169,7 @@ export type InMessage =
   | UnblockFunctionSelector
   | BypasserExecuteBatch
   | UpdateExecutorRoleCheck
+  | SubmitErrorReport
 
 // RBACTimelock contract storage
 export type ContractData = {
@@ -155,6 +188,8 @@ export type ContractData = {
 
   // Flag to enable/disable the executor role check (if disabled, anyone can execute)
   executorRoleCheckEnabled: boolean
+  // Information about the currently pending operation.
+  opPendingInfo: OpPendingInfo
 
   // AccessControl trait data
   rbac: Cell
@@ -170,7 +205,7 @@ export type Call = {
   data: Cell
 }
 
-/// @dev Batch of transactions represented as a operation, which can be scheduled and executed.
+/// Batch of transactions represented as a operation, which can be scheduled and executed.
 export type OperationBatch = {
   // Array of calls to be scheduled
   calls: Cell // vec<Timelock_Call>
@@ -178,6 +213,20 @@ export type OperationBatch = {
   predecessor: bigint
   // Salt used to derive the operation ID
   salt: bigint
+}
+
+/// Information about the currently pending operation.
+///
+/// @dev TON-specific additional data required to support reliable execution in the async environment.
+export type OpPendingInfo = {
+  /// The time at which the scheduled ops becomes valid to execute [executionTime(opCount -
+  /// At this time the previous executed operation is considered optimistically final and successful,
+  /// meaning no bounce was received and we can continue executing.
+  validAfter: number
+  /// The timeout required to finalize the currently executing op
+  opFinalizationTimeout: bigint
+  /// The id of the currently pending operation (OperationBatch hash)
+  opPendingId: bigint
 }
 
 export type ExecuteData = {
@@ -250,6 +299,8 @@ export const opcodes = {
     UnblockFunctionSelector: crc32('Timelock_UnblockFunctionSelector'),
     BypasserExecuteBatch: crc32('Timelock_BypasserExecuteBatch'),
     UpdateExecutorRoleCheck: crc32('Timelock_UpdateExecutorRoleCheck'),
+    SubmitErrorReport: crc32('Timelock_SubmitErrorReport'),
+    UpdateOpFinalizationTimeout: crc32('Timelock_UpdateOpFinalizationTimeout'),
   },
   out: {
     BatchScheduled: crc32('Timelock_BatchScheduled'),
@@ -263,6 +314,25 @@ export const opcodes = {
     FunctionSelectorBlocked: crc32('Timelock_FunctionSelectorBlocked'),
     FunctionSelectorUnblocked: crc32('Timelock_FunctionSelectorUnblocked'),
     ExecutorRoleCheckUpdated: crc32('Timelock_ExecutorRoleCheckUpdated'),
+    ErrorReportSubmitted: crc32('Timelock_ErrorReportSubmitted'),
+    OpFinalizationTimeoutChange: crc32('Timelock_OpFinalizationTimeoutChange'),
+  },
+}
+
+// extracted to use in closure
+const operationBatch: CellCodec<OperationBatch> = {
+  encode: (op: OperationBatch): Builder => {
+    return beginCell() // break
+      .storeRef(op.calls)
+      .storeUint(op.predecessor, 256)
+      .storeUint(op.salt, 256)
+  },
+  load: (src: Slice): OperationBatch => {
+    return {
+      calls: src.loadRef(),
+      predecessor: src.loadUintBig(256),
+      salt: src.loadUintBig(256),
+    }
   },
 }
 
@@ -281,6 +351,7 @@ export const builder = {
             .storeRef(asSnakeData<Address>(msg.cancellers, (a) => beginCell().storeAddress(a)))
             .storeRef(asSnakeData<Address>(msg.bypassers, (a) => beginCell().storeAddress(a)))
             .storeBit(msg.executorRoleCheckEnabled)
+            .storeUint(msg.opFinalizationTimeout, 64)
         },
         load: (src: Slice): Init => {
           src.skip(32) // skip opcode
@@ -293,6 +364,7 @@ export const builder = {
             cancellers: fromSnakeData<Address>(src.loadRef(), (s) => s.loadAddress()),
             bypassers: fromSnakeData<Address>(src.loadRef(), (s) => s.loadAddress()),
             executorRoleCheckEnabled: src.loadBit(),
+            opFinalizationTimeout: src.loadUintBig(64),
           }
         },
       }
@@ -386,6 +458,23 @@ export const builder = {
         },
       }
 
+      const updateOpFinalizationTimeout: CellCodec<UpdateOpFinalizationTimeout> = {
+        encode: (msg: UpdateOpFinalizationTimeout): Builder => {
+          return beginCell()
+            .storeUint(opcodes.in.UpdateOpFinalizationTimeout, 32)
+            .storeUint(msg.queryId, 64)
+            .storeUint(msg.newOpFinalizationTimeout, 64)
+        },
+        load: (src: Slice): UpdateOpFinalizationTimeout => {
+          src.skip(32) // skip opcode
+          return {
+            queryId: src.loadUintBig(64),
+            newOpFinalizationTimeout: -1, // TODO: decode delay properly (number vs bigint mismatch)
+            // newOpFinalizationTimeout: src.loadUintBig(64),
+          }
+        },
+      }
+
       const blockFunctionSelector: CellCodec<BlockFunctionSelector> = {
         encode: (msg: BlockFunctionSelector): Builder => {
           return beginCell()
@@ -450,6 +539,28 @@ export const builder = {
         },
       }
 
+      const submitErrorReport: CellCodec<SubmitErrorReport> = {
+        encode: (msg: SubmitErrorReport): Builder => {
+          return beginCell()
+            .storeUint(opcodes.in.SubmitErrorReport, 32)
+            .storeUint(msg.queryId, 64)
+            .storeRef(operationBatch.encode(msg.opBatch).asCell())
+            .storeUint(msg.opTxHash, 256)
+            .storeUint(msg.errorTxHash, 256)
+            .storeUint(msg.errorCode, 32)
+        },
+        load: (s: Slice): SubmitErrorReport => {
+          s.skip(32) // skip opcode
+          return {
+            queryId: s.loadUintBig(64),
+            opBatch: operationBatch.load(s.loadRef().asSlice()),
+            opTxHash: s.loadUintBig(256),
+            errorTxHash: s.loadUintBig(256),
+            errorCode: s.loadUint(32),
+          }
+        },
+      }
+
       return {
         init,
         topUp,
@@ -457,10 +568,12 @@ export const builder = {
         cancel,
         executeBatch,
         updateDelay,
+        updateOpFinalizationTimeout,
         blockFunctionSelector,
         unblockFunctionSelector,
         bypasserExecuteBatch,
         updateExecutorRoleCheck,
+        submitErrorReport,
       }
     })(),
     out: (() => {
@@ -620,6 +733,9 @@ export const builder = {
               Dictionary.empty(Dictionary.Keys.Uint(32), Dictionary.Values.Buffer(0)),
           )
           .storeBit(data.executorRoleCheckEnabled)
+          .storeUint(data.opPendingInfo.validAfter, 32)
+          .storeUint(data.opPendingInfo.opFinalizationTimeout, 64)
+          .storeUint(data.opPendingInfo.opPendingId, 256)
           .storeRef(data.rbac)
       },
       load: (src: Slice): ContractData => {
@@ -635,19 +751,6 @@ export const builder = {
           target: src.loadAddress(),
           value: src.loadCoins(),
           data: src.loadRef(),
-        }
-      },
-    }
-
-    const operationBatch: CellCodec<OperationBatch> = {
-      encode: (op: OperationBatch): Builder => {
-        return beginCell().storeRef(op.calls).storeUint(op.predecessor, 256).storeUint(op.salt, 256)
-      },
-      load: (src: Slice): OperationBatch => {
-        return {
-          calls: src.loadRef(),
-          predecessor: src.loadUintBig(256),
-          salt: src.loadUintBig(256),
         }
       },
     }
@@ -679,10 +782,20 @@ export const roles = {
   executor: computeRoleID('EXECUTOR_ROLE'),
   // 0xa1b2b8005de234c4b8ce8cd0be058239056e0d54f6097825b5117101469d5a8d
   bypasser: computeRoleID('BYPASSER_ROLE'),
+  // 0x68e79a7bf1e0bc45d0a330c573bc367f9cf464fd326078812f301165fbda4ef1
+  oracle: computeRoleID('ORACLE_ROLE'),
+}
+
+export const topics = {
+  BypasserCallExecuted: crc32('Timelock_BypasserCallExecuted'),
+  CallScheduled: crc32('Timelock_CallScheduled'),
+  CallExecuted: crc32('Timelock_CallExecuted'),
 }
 
 // Timestamp value used to mark an operation as done
-export const DONE_TIMESTAMP = 1
+export const DONE_TIMESTAMP = 1n
+// Timestamp value used to mark an operation as error
+export const ERROR_TIMESTAMP = 2n
 
 export enum Errors {
   SelectorIsBlocked = 101,
@@ -806,6 +919,10 @@ export class ContractClient implements Contract {
     return [type, version]
   }
 
+  async getId(p: ContractProvider): Promise<number> {
+    return p.get('getId', []).then((r) => r.stack.readNumber())
+  }
+
   async isOperation(p: ContractProvider, id: bigint): Promise<boolean> {
     return p
       .get('isOperation', [
@@ -842,6 +959,28 @@ export class ContractClient implements Contract {
   async isOperationDone(p: ContractProvider, id: bigint): Promise<boolean> {
     return p
       .get('isOperationDone', [
+        {
+          type: 'int',
+          value: id,
+        },
+      ])
+      .then((r) => r.stack.readBoolean())
+  }
+
+  async isOperationError(p: ContractProvider, id: bigint): Promise<boolean> {
+    return p
+      .get('isOperationError', [
+        {
+          type: 'int',
+          value: id,
+        },
+      ])
+      .then((r) => r.stack.readBoolean())
+  }
+
+  async isPendingOperationFinal(p: ContractProvider, id: bigint): Promise<boolean> {
+    return p
+      .get('isPendingOperationFinal', [
         {
           type: 'int',
           value: id,
@@ -907,5 +1046,15 @@ export class ContractClient implements Contract {
 
   async isExecutorRoleCheckEnabled(p: ContractProvider): Promise<boolean> {
     return p.get('isExecutorRoleCheckEnabled', []).then((r) => r.stack.readBoolean())
+  }
+
+  async getOpPendingInfo(p: ContractProvider): Promise<OpPendingInfo> {
+    return p // break line
+      .get('getOpPendingInfo', [])
+      .then((result) => ({
+        validAfter: result.stack.readNumber(),
+        opFinalizationTimeout: result.stack.readBigNumber(),
+        opPendingId: result.stack.readBigNumber(),
+      }))
   }
 }

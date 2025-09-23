@@ -53,6 +53,11 @@ describe('RBACTimelock', () => {
       id: crc32('mcms.timelock.test-sandbox'), // unique ID for this instance
       minDelay,
       executorRoleCheckEnabled: true,
+      opPendingInfo: {
+        validAfter: 0,
+        opFinalizationTimeout: 0n,
+        opPendingId: 0n,
+      },
       rbac: ac.builder.data.contractData.encode(rbacStorage).asCell(),
     }
 
@@ -76,6 +81,9 @@ describe('RBACTimelock', () => {
     expect(rbactl.roles.bypasser).toBe(
       0xa1b2b8005de234c4b8ce8cd0be058239056e0d54f6097825b5117101469d5a8dn,
     )
+    expect(rbactl.roles.oracle).toBe(
+      0x68e79a7bf1e0bc45d0a330c573bc367f9cf464fd326078812f301165fbda4ef1n,
+    )
   })
 
   it('Should compute crc32 opcodes', async () => {
@@ -90,6 +98,8 @@ describe('RBACTimelock', () => {
     expect(rbactl.opcodes.in.UnblockFunctionSelector).toBe(0x26f19f4e)
     expect(rbactl.opcodes.in.BypasserExecuteBatch).toBe(0xbb0e9f7d)
     expect(rbactl.opcodes.in.UpdateExecutorRoleCheck).toBe(0x34d98baa)
+    expect(rbactl.opcodes.in.SubmitErrorReport).toBe(0xf4538b79)
+    expect(rbactl.opcodes.in.UpdateOpFinalizationTimeout).toBe(0x94278d4f)
 
     // Out opcodes
     expect(rbactl.opcodes.out.BatchScheduled).toBe(0xdf65b59e)
@@ -103,6 +113,8 @@ describe('RBACTimelock', () => {
     expect(rbactl.opcodes.out.FunctionSelectorBlocked).toBe(0x9c4d6d94)
     expect(rbactl.opcodes.out.FunctionSelectorUnblocked).toBe(0xf410a31b)
     expect(rbactl.opcodes.out.ExecutorRoleCheckUpdated).toBe(0xc6d451e2)
+    expect(rbactl.opcodes.out.ErrorReportSubmitted).toBe(0xdbd4c8ee)
+    expect(rbactl.opcodes.out.OpFinalizationTimeoutChange).toBe(0x1f102718)
   })
 
   it('should deploy', async () => {
@@ -140,6 +152,7 @@ describe('RBACTimelock', () => {
         cancellers: [deployer.address],
         bypassers: [deployer.address],
         executorRoleCheckEnabled: true,
+        opFinalizationTimeout: 0n,
       })
       .asCell()
 

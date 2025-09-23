@@ -34,7 +34,7 @@ describe('MCMS - IntegrationTest', () => {
       timelock: await compile('mcms.RBACTimelock'),
       counter: await compile('examples.Counter'),
     }
-  })
+  }, 10_000)
 
   var acc: {
     deployer: SandboxContract<TreasuryContract>
@@ -175,6 +175,11 @@ describe('MCMS - IntegrationTest', () => {
         id: crc32('mcms.timelock.test-integration'), // unique ID for this instance
         minDelay: MIN_DELAY,
         executorRoleCheckEnabled: true,
+        opPendingInfo: {
+          validAfter: 0,
+          opFinalizationTimeout: 0n,
+          opPendingId: 0n,
+        },
         rbac: ac.builder.data.contractData.encode(rbacStorage).asCell(),
       }
 
@@ -207,6 +212,7 @@ describe('MCMS - IntegrationTest', () => {
           cancellers: [bind.mcmsVeto.address],
           bypassers: [bind.mcmsBypass.address],
           executorRoleCheckEnabled: true,
+          opFinalizationTimeout: 0n,
         })
         .asCell()
       const r = await bind.timelock.sendInternal(acc.deployer.getSender(), toNano('0.2'), body)
