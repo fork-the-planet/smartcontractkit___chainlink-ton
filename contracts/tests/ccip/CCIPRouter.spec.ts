@@ -19,6 +19,7 @@ import { dump } from '../utils/prettyPrint'
 import { CellCodec } from '../../wrappers/utils'
 
 const CHAINSEL_EVM_TEST_90000001 = 909606746561742123n
+const CHAINSEL_EVM_TEST_90000002 = 5548718428018410741n
 const CHAIN_FAMILY_SELECTOR_EVM = 0x2812d52c
 const CHAIN_FAMILY_SELECTOR_SVM = 0x1e10bdc4
 const CHAIN_FAMILY_SELECTOR_APTOS = 0xac77ffec
@@ -229,13 +230,40 @@ describe('Router', () => {
     }
   })
 
+  it('update router ramps in batch', async () => {
+    {
+      const result = await router.sendSetRamps(deployer.getSender(), {
+        value: toNano('1'),
+        queryID: 0,
+        destChainSelector: [CHAINSEL_EVM_TEST_90000001, CHAINSEL_EVM_TEST_90000002],
+        onRamp: onRamp.address,
+      })
+      expect(result.transactions).toHaveTransaction({
+        from: deployer.address,
+        to: router.address,
+        success: true,
+      })
+    }
+
+    {
+      let result = await router.onRamp(
+        blockchain.provider(router.address),
+        CHAINSEL_EVM_TEST_90000001,
+      )
+      expect(result).toEqual(onRamp.address)
+
+      result = await router.onRamp(blockchain.provider(router.address), CHAINSEL_EVM_TEST_90000002)
+      expect(result).toEqual(onRamp.address)
+    }
+  })
+
   it('onramp arbitrary message passing', async () => {
     // Configure onRamp on router
     {
-      const result = await router.sendSetRamp(deployer.getSender(), {
+      const result = await router.sendSetRamps(deployer.getSender(), {
         value: toNano('1'),
         queryID: 0,
-        destChainSelector: CHAINSEL_EVM_TEST_90000001,
+        destChainSelector: [CHAINSEL_EVM_TEST_90000001],
         onRamp: onRamp.address,
       })
       expect(result.transactions).toHaveTransaction({
@@ -349,10 +377,10 @@ describe('Router', () => {
   it('onramp token transfer - paid with TON', async () => {
     // Configure onRamp on router
     {
-      const result = await router.sendSetRamp(deployer.getSender(), {
+      const result = await router.sendSetRamps(deployer.getSender(), {
         value: toNano('1'),
         queryID: 0,
-        destChainSelector: CHAINSEL_EVM_TEST_90000001,
+        destChainSelector: [CHAINSEL_EVM_TEST_90000001],
         onRamp: onRamp.address,
       })
       expect(result.transactions).toHaveTransaction({
