@@ -2,11 +2,12 @@ import "@stdlib/lisp-lists"
 import "../types";
 import "../../lib/access/ownable_2step";
 import "../../deployable/types";
-import "../../lib/upgrades/type_and_version";
 import "../../lib/utils";
 import "messages"
 import "errors"
 import "../../lib/cross_chain_address_validation"
+
+const CONTRACT_VERSION = "0.0.1";
 
 const VAL_1E5:  uint256 = 100000;
 const VAL_1E14: uint256 = 100000000000000;
@@ -25,6 +26,7 @@ const CHAIN_FAMILY_SELECTOR_APTOS: uint32 = 0xac77ffec;
 const CHAIN_FAMILY_SELECTOR_SUI:   uint32 = 0xc4e05953;
 
 struct Storage {
+    id: uint32;
     ownable: Ownable2Step;
 
     maxFeeJuelsPerMsg: uint96;
@@ -558,7 +560,17 @@ get fun staticConfig(): (uint96, address, uint64) {
 }
 
 get fun typeAndVersion(): (slice, slice) {
-     return ("com.chainlink.ton.ccip.FeeQuoter", "1.0.0");
+    return ("com.chainlink.ton.ccip.FeeQuoter", CONTRACT_VERSION);
+}
+
+// Returns the current code of the contract.
+get fun code(): cell {
+    return contract.getCode();
+}
+
+// Returns the sha256 hash of the current code of the contract.
+get fun codeHash(): int {
+    return contract.getCode().hash();
 }
 
 get fun destChainSelectors(): tuple {

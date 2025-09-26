@@ -1,13 +1,13 @@
 import "@stdlib/lisp-lists";
 import "types.tolk";
 import "../lib/access/ownable_2step.tolk";
-import "../lib/upgrades/type_and_version.tolk";
 import "../lib/utils.tolk";
-import "@stdlib/tvm-dicts";
 import "ccipsend_executor/storage"
 import "ccipsend_executor/messages"
 import "../lib/jetton/messages"
 import "../lib/jetton/messages_extended"
+
+const CONTRACT_VERSION = "0.0.1";
 
 const CCIP_MESSAGE_SENT_TOPIC: int = stringCrc32("CCIPMessageSent"); 
 
@@ -16,6 +16,7 @@ struct CCIPMessageSent {
 }
 
 struct OnRamp_Storage {
+    id: uint32;
     ownable: Ownable2Step;
 
     // static config
@@ -380,5 +381,15 @@ fun withdrawFeeTokens() {
 }
 
 get fun typeAndVersion(): (slice, slice) {
-     return ("com.chainlink.ton.ccip.OnRamp", "1.0.0");
- }
+    return ("com.chainlink.ton.ccip.OnRamp", CONTRACT_VERSION);
+}
+
+// Returns the current code of the contract.
+get fun code(): cell {
+    return contract.getCode();
+}
+
+// Returns the sha256 hash of the current code of the contract.
+get fun codeHash(): int {
+    return contract.getCode().hash();
+}
