@@ -7,7 +7,7 @@ import "../lib/ocr/types"
 import "../lib/utils.tolk"
 import "fee_quoter/messages"
 
-const CONTRACT_VERSION = "0.0.1";
+const CONTRACT_VERSION = "0.0.2";
 
 struct Storage {
     id: uint32;
@@ -143,7 +143,7 @@ type OffRamp_InMessage =
     | OffRamp_NotifyFailure
     | OffRamp_NotifySuccess;
 
-type OffRamp_BouncedMessage =  CCIPReceive;
+type OffRamp_BouncedMessage = CCIPReceive;
 
 fun onInternalMessage(in:InMessage) {
     val msg = lazy OffRamp_InMessage.fromSlice(in.body);
@@ -184,6 +184,8 @@ fun onBouncedMessage(in: InMessageBounced) {
     val msg = lazy OffRamp_BouncedMessage.fromSlice(in.bouncedBody);
     match (msg) {
         CCIPReceive => {
+            // with lazy load only deserialize accessed fields (rootId), 
+            // not the message reference in CCIPReceive
             _bouncedCCIPReceive(msg.rootId, in.senderAddress);
         }
     }
@@ -327,15 +329,26 @@ fun _commit(msg: OffRamp_Commit, sender: address) {
 
     // update token/gas prices if any
     if (report.priceUpdates != null) {
-        val updatePricesMsg = createMessage({
-            bounce: true,
-            value: ton("0.05"), // TODO:
-            dest: st.feeQuoter,
-            body: FeeQuoter_UpdatePrices {
-                updates: report.priceUpdates!.load()
-            },
-        });
-        updatePricesMsg.send(SEND_MODE_REGULAR);
+        // extract OCR sequence number from report context (matches EVM implementation)
+        val ocrSequenceNumber = msg.reportContext.sequenceBytes;
+
+        // check for price staleness based on the OCR sequence number
+        if (st.latestPriceSequenceNumber < ocrSequenceNumber) {
+            // if prices are not stale, update the latest sequence number
+            st.latestPriceSequenceNumber = ocrSequenceNumber;
+            
+            // and update the prices in the fee quoter
+            val updatePricesMsg = createMessage({
+                bounce: true,
+                value: ton("0.05"), // TODO:
+                dest: st.feeQuoter,
+                body: FeeQuoter_UpdatePrices {
+                    updates: report.priceUpdates!.load()
+                },
+            });
+            updatePricesMsg.send(SEND_MODE_REGULAR);
+        }
+        // note: if prices are stale, we continue to process merkle roots if any exist
     }
 
     var roots = Iterator<MerkleRoot>.new(report.merkleRoots);
@@ -351,8 +364,8 @@ fun _commit(msg: OffRamp_Commit, sender: address) {
 
         // validate against sourceChainConfig etc
 
-        // increment seqNr
-        sourceChainConfig.minSeqNr += 1;
+        // set next expected sequence number to maxSeqNr + 1 (matches EVM implementation)
+        sourceChainConfig.minSeqNr = root.maxSeqNr + 1;
         st.sourceChainConfigs.replaceIfExists(root.sourceChainSelector, sourceChainConfig);
 
         val rootId = getMerkleRootID(root.merkleRoot);
@@ -386,6 +399,9 @@ fun _commit(msg: OffRamp_Commit, sender: address) {
 
         initMsg.send(SEND_MODE_REGULAR);
     }
+
+    // store updated state (latestPriceSequenceNumber and sourceChainConfigs)
+    st.store();
 
     // Verifies signatures and emits Transmitted event
     st.ocr3Base.load().transmit(

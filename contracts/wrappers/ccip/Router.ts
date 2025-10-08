@@ -164,7 +164,6 @@ export const builder = {
               : null,
           )
           .storeDict(config.onRamps)
-          .storeUint(64, 16) // keyLen
       },
 
       load: (src: Slice): Storage => {

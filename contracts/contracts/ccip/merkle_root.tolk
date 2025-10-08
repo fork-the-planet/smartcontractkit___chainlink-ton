@@ -2,7 +2,7 @@ import "types.tolk";
 import "../deployable/types.tolk";
 import "../lib/utils.tolk";
 
-const CONTRACT_VERSION = "0.0.1";
+const CONTRACT_VERSION = "0.0.2";
 
 // State stores the general state machine indicating which phase we're in
 // TODO: we might be able to merge this into execution_states
@@ -48,6 +48,7 @@ fun onInternalMessage(in: InMessage) {
         }
     }
 }
+
 fun _ccipReceiveBounced(msg: MerkleRoot_CCIPReceiveBounced, sender: address){
     var st = MerkleRoot_Storage.load();
 
