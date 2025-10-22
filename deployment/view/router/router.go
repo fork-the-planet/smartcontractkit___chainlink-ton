@@ -1,4 +1,4 @@
-package view
+package router
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	cldf_ton "github.com/smartcontractkit/chainlink-deployments-framework/chain/ton"
+	"github.com/smartcontractkit/chainlink-ton/deployment/view"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/ton"
 	"github.com/xssnick/tonutils-go/tvm/cell"
@@ -18,15 +19,15 @@ const (
 	onRampGetter = "onRamp"
 )
 
-type RouterView struct {
-	MetaData
+type View struct {
+	view.MetaData
 	OnRampAddr map[uint64]*address.Address `json:"onRampAddr,omitempty"`
 }
 
-// FetchRouterView generates a view of the router contract at the specified block.
-func FetchRouterView(ctx context.Context, c cldf_ton.Chain, block *ton.BlockIDExt, routerAddr *address.Address) (*RouterView, error) {
+// FetchView generates a view of the router contract at the specified block.
+func FetchView(ctx context.Context, c cldf_ton.Chain, block *ton.BlockIDExt, routerAddr *address.Address) (*View, error) {
 	var typeVersion common.TypeAndVersion
-	result, err := c.Client.RunGetMethod(ctx, block, routerAddr, versionGetter)
+	result, err := c.Client.RunGetMethod(ctx, block, routerAddr, view.VersionGetter)
 	if err != nil {
 		return nil, fmt.Errorf("error getting typeAndVersion: %w", err)
 	}
@@ -34,12 +35,12 @@ func FetchRouterView(ctx context.Context, c cldf_ton.Chain, block *ton.BlockIDEx
 		return nil, fmt.Errorf("failed to parse typeAndVersion: %w", err)
 	}
 
-	result, err = c.Client.RunGetMethod(ctx, block, routerAddr, destChainsGetter)
+	result, err = c.Client.RunGetMethod(ctx, block, routerAddr, view.DestChainsGetter)
 	if err != nil {
 		return nil, err
 	}
 
-	selectorSlice := parseExecutionResultForDestChainSelectors(result.AsTuple())
+	selectorSlice := view.ParseExecutionResultForDestChainSelectors(result.AsTuple())
 
 	var onrampSlice *cell.Slice
 	var onRampAddr *address.Address
@@ -68,8 +69,8 @@ func FetchRouterView(ctx context.Context, c cldf_ton.Chain, block *ton.BlockIDEx
 		})
 	}
 
-	return &RouterView{
-		MetaData: MetaData{
+	return &View{
+		MetaData: view.MetaData{
 			Address:      routerAddr,
 			ContractType: typeVersion.Type,
 			Version:      typeVersion.Version,
