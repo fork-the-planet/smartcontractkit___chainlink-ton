@@ -25,7 +25,6 @@ const (
 	OpcodeUpdateTokenTransferFeeConfigs = 0xB2826316
 	OpcodeUpdateDestChainConfigs        = 0x29950BAA
 	OpcodeFeeQuoterGetValidatedFee      = 0x7496FF56
-	OpcodeFeeQuoterMessageValidated     = 0x1FA60374
 )
 
 //go:generate go run golang.org/x/tools/cmd/stringer@v0.38.0 -type=ExitCode
@@ -261,13 +260,6 @@ type GetValidatedFee struct {
 	_        tlb.Magic  `tlb:"#7496FF56"` //nolint:revive // Ignore opcode tag
 	Msg      *cell.Cell `tlb:"^"`         // Cell containing the CCIPSend message
 	Metadata *cell.Cell `tlb:"^"`         // Cell containing metadata
-}
-
-type MessageValidated struct {
-	_        tlb.Magic  `tlb:"#1FA60374"` //nolint:revive // Ignore opcode tag
-	Msg      *cell.Cell `tlb:"^"`         // TODO put content here
-	Metadata *cell.Cell `tlb:"^"`
-	Fee      *tlb.Coins `tlb:"."`
 }
 
 type UpdatePrices struct {
