@@ -1,18 +1,35 @@
-package router
+package timelock
 
 import (
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 
-	"github.com/smartcontractkit/chainlink-ton/pkg/ccip/bindings/router"
+	"github.com/smartcontractkit/chainlink-ton/pkg/bindings/mcms/timelock"
 
 	"github.com/smartcontractkit/chainlink-ton/pkg/ton/debug/lib"
 	"github.com/smartcontractkit/chainlink-ton/pkg/ton/tvm"
 )
 
 var TLBs = lib.MustNewTLBMap([]interface{}{
-	router.SetRamps{},
-	router.CCIPSend{},
+	timelock.Init{},
+	timelock.ScheduleBatch{},
+	timelock.Cancel{},
+	timelock.ExecuteBatch{},
+	timelock.UpdateDelay{},
+	timelock.UpdateOpFinalizationTimeout{},
+	timelock.BlockFunctionSelector{},
+	timelock.UnblockFunctionSelector{},
+	timelock.BypasserExecuteBatch{},
+	timelock.UpdateExecutorRoleCheck{},
+	timelock.SubmitErrorReport{},
+	timelock.CallScheduled{},
+	timelock.CallExecuted{},
+	timelock.BypasserCallExecuted{},
+	timelock.Cancelled{},
+	timelock.MinDelayChange{},
+	timelock.FunctionSelectorBlocked{},
+	timelock.FunctionSelectorUnblocked{},
+	timelock.ExecutorRoleCheckUpdated{},
 })
 
 type decoder struct {
@@ -24,7 +41,7 @@ func NewDecoder(tlbsCtx map[uint64]interface{}) lib.ContractDecoder {
 }
 
 func (d *decoder) ContractType() string {
-	return "com.chainlink.ton.ccip.Router"
+	return "com.chainlink.ton.mcms.Timelock"
 }
 
 func (d *decoder) EventInfo(dstAddr *address.Address, msg *cell.Cell) (lib.MessageInfo, error) {
@@ -40,7 +57,7 @@ func (d *decoder) InternalMessageInfo(msg *cell.Cell) (lib.MessageInfo, error) {
 }
 
 func (d *decoder) ExitCodeInfo(exitCode tvm.ExitCode) (string, error) {
-	ec, err := router.ExitCodeCodec.NewFrom(exitCode)
+	ec, err := timelock.ExitCodeCodec.NewFrom(exitCode)
 	if err != nil {
 		return "", &lib.UnknownMessageError{}
 	}

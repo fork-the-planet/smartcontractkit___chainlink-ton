@@ -1,18 +1,22 @@
-package router
+package offramp
 
 import (
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 
-	"github.com/smartcontractkit/chainlink-ton/pkg/ccip/bindings/router"
-
+	"github.com/smartcontractkit/chainlink-ton/pkg/ccip/bindings/offramp"
+	"github.com/smartcontractkit/chainlink-ton/pkg/ton/debug/decoders/ccip/ccipcommon"
 	"github.com/smartcontractkit/chainlink-ton/pkg/ton/debug/lib"
 	"github.com/smartcontractkit/chainlink-ton/pkg/ton/tvm"
 )
 
 var TLBs = lib.MustNewTLBMap([]interface{}{
-	router.SetRamps{},
-	router.CCIPSend{},
+	offramp.Execute{},
+	offramp.UpdateSourceChainConfig{},
+	offramp.SetOCR3Config{},
+	offramp.Commit{},
+	offramp.Execute{},
+	offramp.CCIPReceive{},
 })
 
 type decoder struct {
@@ -24,7 +28,7 @@ func NewDecoder(tlbsCtx map[uint64]interface{}) lib.ContractDecoder {
 }
 
 func (d *decoder) ContractType() string {
-	return "com.chainlink.ton.ccip.Router"
+	return "com.chainlink.ton.ccip.OffRamp"
 }
 
 func (d *decoder) EventInfo(dstAddr *address.Address, msg *cell.Cell) (lib.MessageInfo, error) {
@@ -40,10 +44,5 @@ func (d *decoder) InternalMessageInfo(msg *cell.Cell) (lib.MessageInfo, error) {
 }
 
 func (d *decoder) ExitCodeInfo(exitCode tvm.ExitCode) (string, error) {
-	ec, err := router.ExitCodeCodec.NewFrom(exitCode)
-	if err != nil {
-		return "", &lib.UnknownMessageError{}
-	}
-
-	return ec.String(), nil
+	return ccipcommon.NewDecoder(d.tlbsCtx).ExitCodeInfo(exitCode)
 }

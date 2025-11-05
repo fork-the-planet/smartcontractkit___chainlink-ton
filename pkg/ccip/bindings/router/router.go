@@ -17,13 +17,27 @@ const (
 	OpcodeUpdateOffRamps = 0x234110a7
 )
 
+//go:generate go run golang.org/x/tools/cmd/stringer@v0.38.0 -type=ExitCode
+type ExitCode tvm.ExitCode
+
+var ExitCodeCodec tvm.ExitCodeCodecInt[ExitCode] = ExitCode(tvm.ExitCode(-1))
+
+func (ExitCode) NewFrom(ec tvm.ExitCode) (ExitCode, error) {
+	const (
+		ecMin = int32(ErrorDestChainNotEnabled)
+		ecMax = int32(ErrorUnknownMessage)
+	)
+	return tvm.NewExitCodeInRange(ExitCode(ec), ecMin, ecMax)
+}
+
 const (
-	ErrorDestChainNotEnabled   tvm.ExitCode = tvm.ExitCode(49600)
-	ErrorSourceChainNotEnabled tvm.ExitCode = tvm.ExitCode(49601)
-	SenderIsNotOffRamp         tvm.ExitCode = tvm.ExitCode(49602)
-	OffRampNotSetForSelector   tvm.ExitCode = tvm.ExitCode(49603)
-	OffRampAddressMismatch     tvm.ExitCode = tvm.ExitCode(49604)
-	ErrorUnknownMessage        tvm.ExitCode = tvm.ExitCode(0x1002)
+	ErrorDestChainNotEnabled ExitCode = iota + ExitCode(49600)
+	ErrorSourceChainNotEnabled
+	SenderIsNotOffRamp
+	OffRampNotSetForSelector
+	OffRampAddressMismatch
+
+	ErrorUnknownMessage ExitCode = ExitCode(0x1002)
 )
 
 type Storage struct {

@@ -17,10 +17,22 @@ const (
 	OpcodeCCIPSendExecutorExecute = 0xAF3C62B3 // crc32('CCIPSendExecutor_Execute')
 )
 
+//go:generate go run golang.org/x/tools/cmd/stringer@v0.38.0 -type=ExitCode
+type ExitCode tvm.ExitCode
+
+var ExitCodeCodec tvm.ExitCodeCodecInt[ExitCode] = ExitCode(tvm.ExitCode(-1))
+
+func (ExitCode) NewFrom(ec tvm.ExitCode) (ExitCode, error) {
+	return tvm.NewExitCodeInSet(ExitCode(ec), []ExitCode{
+		ErrorUnauthorized,
+		ErrorStateNotExpected,
+	})
+}
+
 // CCIPSend Executor exit codes
 const (
-	ErrorStateNotExpected tvm.ExitCode = tvm.ExitCode(500)
-	ErrorUnauthorized     tvm.ExitCode = tvm.ExitCode(265) // ERROR_UNAUTHORIZED from contract
+	ErrorUnauthorized     ExitCode = 265 // ERROR_UNAUTHORIZED from contract
+	ErrorStateNotExpected ExitCode = 500
 )
 
 // CCIPSendExecutor_Execute message structure

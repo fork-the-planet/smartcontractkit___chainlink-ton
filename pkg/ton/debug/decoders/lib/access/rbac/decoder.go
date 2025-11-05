@@ -1,13 +1,23 @@
-package ccipcommon
+package rbac
 
 import (
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tvm/cell"
 
-	"github.com/smartcontractkit/chainlink-ton/pkg/ccip/bindings/common"
+	"github.com/smartcontractkit/chainlink-ton/pkg/bindings/lib/access/rbac"
+
 	"github.com/smartcontractkit/chainlink-ton/pkg/ton/debug/lib"
 	"github.com/smartcontractkit/chainlink-ton/pkg/ton/tvm"
 )
+
+var TLBs = lib.MustNewTLBMap([]interface{}{
+	rbac.GrantRole{},
+	rbac.RevokeRole{},
+	rbac.RenounceRole{},
+	rbac.RoleGranted{},
+	rbac.RoleRevoked{},
+	rbac.RoleAdminChanged{},
+})
 
 type decoder struct {
 	tlbsCtx map[uint64]interface{}
@@ -17,32 +27,27 @@ func NewDecoder(tlbsCtx map[uint64]interface{}) lib.ContractDecoder {
 	return &decoder{tlbsCtx}
 }
 
-// ContractType implements lib.ContractDecoder.
 func (d *decoder) ContractType() string {
-	return "com.chainlink.ton.ccip"
+	return "com.chainlink.ton.lib.access.RBAC"
 }
 
-// EventInfo implements lib.ContractDecoder.
 func (d *decoder) EventInfo(dstAddr *address.Address, msg *cell.Cell) (lib.MessageInfo, error) {
 	return nil, &lib.UnknownMessageError{}
 }
 
-// ExitCodeInfo implements lib.ContractDecoder.
+func (d *decoder) ExternalMessageInfo(msg *cell.Cell) (lib.MessageInfo, error) {
+	return nil, &lib.UnknownMessageError{}
+}
+
+func (d *decoder) InternalMessageInfo(msg *cell.Cell) (lib.MessageInfo, error) {
+	return lib.NewMessageInfoFromCell(d.ContractType(), msg, TLBs, d.tlbsCtx)
+}
+
 func (d *decoder) ExitCodeInfo(exitCode tvm.ExitCode) (string, error) {
-	ec, err := common.ExitCodeCodec.NewFrom(exitCode)
+	ec, err := rbac.ExitCodeCodec.NewFrom(exitCode)
 	if err != nil {
 		return "", &lib.UnknownMessageError{}
 	}
 
 	return ec.String(), nil
-}
-
-// ExternalMessageInfo implements lib.ContractDecoder.
-func (d *decoder) ExternalMessageInfo(body *cell.Cell) (lib.MessageInfo, error) {
-	return nil, &lib.UnknownMessageError{}
-}
-
-// InternalMessageInfo implements lib.ContractDecoder.
-func (d *decoder) InternalMessageInfo(body *cell.Cell) (lib.MessageInfo, error) {
-	return nil, &lib.UnknownMessageError{}
 }
