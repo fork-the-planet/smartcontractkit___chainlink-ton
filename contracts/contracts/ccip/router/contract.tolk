@@ -27,7 +27,11 @@ fun onInternalMessage(in: InMessage) {
     match (msg) {
         Router_SetRamps => {onSetRamps(msg, in.senderAddress)}
         Router_UpdateOffRamps => { onUpdateOffRamps(msg, in.senderAddress) }
-        Router_CCIPSend => { onSend(msg, in.senderAddress) }
+        Router_CCIPSend => { 
+            val minValue = Router_Costs.CCIPSend();
+            assert (in.valueCoins >= minValue) throw Router_Error.InsufficientFee;
+            onSend(msg, in.senderAddress, in.valueCoins)
+            }
         Router_RouteMessage => { 
             routeMessage(msg, in.senderAddress)
             }
@@ -94,7 +98,7 @@ fun onInternalMessage(in: InMessage) {
             });
             reply.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
         }
-        Common_JettonTransferNotification => { onTransferNotification(msg, in.senderAddress) }
+        Common_JettonTransferNotification => { onTransferNotification(msg, in.senderAddress, in.valueCoins) }
         Withdrawable_Withdraw => {
             var st = lazy Storage.load();
             st.ownable.requireOwner(in.senderAddress);
@@ -229,12 +233,11 @@ fun ccipReceiveBounced(execId: ReceiveExecutorId, sender: address) {
     receiveBounced.send(SEND_MODE_REGULAR);
 }
 
-
-fun onSend(msg: Router_CCIPSend, sender: address) {
-    ccipSend(msg, sender);
+fun onSend(msg: Router_CCIPSend, sender: address, value: coins) {
+    ccipSend(msg, sender, value);
 }
 
-fun onTransferNotification(transferNotification: Common_JettonTransferNotification, wallet: address) {
+fun onTransferNotification(transferNotification: Common_JettonTransferNotification, wallet: address, value: coins) {
     val st = lazy Storage.load();
 
     // TBD: I think we don't need to validate the sender here. If it is not a Jetton Wallet, it would not be able to transfer the jettons?
@@ -268,7 +271,7 @@ fun onTransferNotification(transferNotification: Common_JettonTransferNotificati
             sendExcessesTo: contract.getAddress(),
             customPayload: null,
             forwardTonAmount: ton("0.5"), // TODO
-            forwardPayload: OnRamp_Send { msg: sendMsg.toCell(), metadata: Metadata{ sender: transferNotification.sender } }.toCell(),
+            forwardPayload: OnRamp_Send { msg: sendMsg.toCell(), metadata: Metadata{ sender: transferNotification.sender, value } }.toCell(),
         },
     });
     transferMessage.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
@@ -278,13 +281,13 @@ fun onTransferNotification(transferNotification: Common_JettonTransferNotificati
     // self.forward(msg.sender, null, false, null);
 }
 
-fun ccipSend(msg: Router_CCIPSend, sender: address) {
+fun ccipSend(msg: Router_CCIPSend, sender: address, value: coins) {
     val st = lazy Storage.load();
 
     // verify destination chain not cursed
     var rmn = st.rmnRemote.load();
     val isCursed = rmn.cursedSubjects.isCursed(msg.destChainSelector as uint128);
-    assert(!isCursed, Router_Error.SubjectCursed as int);
+    assert(!isCursed, Router_Error.SubjectCursed);
 
     // forward to onRamp
     // ccipSend(onRamp, msg, value/token amounts)
@@ -294,7 +297,7 @@ fun ccipSend(msg: Router_CCIPSend, sender: address) {
         bounce: true,
         value: 0,
         dest: onRamp,
-        body: OnRamp_Send { msg: msg.toCell(), metadata: Metadata{ sender } },
+        body: OnRamp_Send { msg: msg.toCell(), metadata: Metadata{ sender, value } },
     });
     sendMsg.send(SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
 }
@@ -305,7 +308,7 @@ fun onSendACK(msg: Router_MessageSent, sender: address) {
     assert (sender == onRamp) throw Router_Error.NotOnRamp;
 
     val ackMsg = createMessage({
-        bounce: true,
+        bounce: false,
         value: 0,
         dest: msg.sender,
         body: Router_CCIPSendACK {
