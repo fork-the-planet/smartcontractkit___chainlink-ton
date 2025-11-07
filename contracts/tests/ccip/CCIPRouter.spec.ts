@@ -140,6 +140,7 @@ describe('Router', () => {
         owner: deployer.address,
         pendingOwner: null,
       },
+      wrappedNative: TEST_TOKEN_ADDR,
       onRamps: Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address()),
       offRamps: Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address()),
     }
@@ -1005,6 +1006,7 @@ async function deployRouterContract(
       owner: owner.address,
       pendingOwner: null,
     },
+    wrappedNative: TEST_TOKEN_ADDR,
     onRamps: Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address()),
     offRamps: Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address()),
   }
