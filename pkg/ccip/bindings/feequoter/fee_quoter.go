@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	tokenPriceGetter   = "tokenPrice"
-	StaticConfigGetter = "staticConfig"
+	tokenPriceGetter               = "tokenPrice"
+	StaticConfigGetter             = "staticConfig"
+	DestinationChainGasPriceGetter = "destinationChainGasPrice"
 )
 
 // Fee Quoter opcodes
@@ -71,6 +72,18 @@ type USDPerUnitGas struct {
 	ExecutionGasPrice        *big.Int `tlb:"## 112"`
 	DataAvailabilityGasPrice *big.Int `tlb:"## 112"`
 	Timestamp                uint64   `tlb:"## 64"`
+}
+
+func (u *USDPerUnitGas) FromResult(result *ton.ExecutionResult) error {
+	c, err := result.Cell(0)
+	if err != nil {
+		return err
+	}
+	return tlb.LoadFromCell(u, c.BeginParse())
+}
+
+func (u *USDPerUnitGas) FetchResult(ctx context.Context, client ton.APIClientWrapped, block *ton.BlockIDExt, contractAddr *address.Address, destChainSelector []interface{}) error {
+	return ccipcommon.FetchResultHelper(ctx, client, block, contractAddr, DestinationChainGasPriceGetter, destChainSelector, u.FromResult)
 }
 
 type DestChainConfig struct {
