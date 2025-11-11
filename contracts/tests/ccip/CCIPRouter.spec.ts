@@ -344,6 +344,11 @@ describe('Router', () => {
         to: router.address,
         success: true,
       })
+
+      assertLog(result.transactions, router.address, LogTypes.OnRampSet, {
+        destChainSelectors: [CHAINSEL_EVM_TEST_90000001],
+        onRamp: onRamp.address,
+      })
     }
   })
 
@@ -385,6 +390,49 @@ describe('Router', () => {
     }
   })
 
+  it('update router offRamp events emission', async () => {
+    const offRampAddress1 = await generateRandomTonAddress()
+    {
+      // test update method wrapper
+      const result = await router.sendUpdateOffRamps(deployer.getSender(), {
+        value: toNano('1'),
+        queryId: 0,
+        sourceChainSelectorAdd: [CHAINSEL_EVM_TEST_90000001, CHAINSEL_EVM_TEST_90000002],
+        offRampAdd: offRampAddress1,
+        sourceChainSelectorRemove: [],
+      })
+      expect(result.transactions).toHaveTransaction({
+        from: deployer.address,
+        to: router.address,
+        success: true,
+      })
+
+      assertLog(result.transactions, router.address, LogTypes.OffRampAdded, {
+        sourceChainSelectors: [CHAINSEL_EVM_TEST_90000001, CHAINSEL_EVM_TEST_90000002],
+        offRampAdded: offRampAddress1,
+      })
+
+      // test update method wrapper
+      const result2 = await router.sendUpdateOffRamps(deployer.getSender(), {
+        value: toNano('1'),
+        queryId: 0,
+        sourceChainSelectorAdd: [],
+        sourceChainSelectorRemove: [CHAINSEL_EVM_TEST_90000001, CHAINSEL_EVM_TEST_90000002],
+        offRampRemove: offRampAddress1,
+      })
+      expect(result2.transactions).toHaveTransaction({
+        from: deployer.address,
+        to: router.address,
+        success: true,
+      })
+
+      assertLog(result2.transactions, router.address, LogTypes.OffRampRemoved, {
+        sourceChainSelectors: [CHAINSEL_EVM_TEST_90000001, CHAINSEL_EVM_TEST_90000002],
+        offRampRemoved: offRampAddress1,
+      })
+    }
+  })
+
   it('update router offramps in batch with one offRamp address', async () => {
     const offRampAddress1 = await generateRandomTonAddress()
     {
@@ -400,6 +448,11 @@ describe('Router', () => {
         from: deployer.address,
         to: router.address,
         success: true,
+      })
+
+      assertLog(result.transactions, router.address, LogTypes.OffRampAdded, {
+        sourceChainSelectors: [CHAINSEL_EVM_TEST_90000001, CHAINSEL_EVM_TEST_90000002],
+        offRampAdded: offRampAddress1,
       })
     }
 
@@ -494,6 +547,10 @@ describe('Router', () => {
         to: router.address,
         success: true,
       })
+
+      assertLog(result.transactions, router.address, LogTypes.Cursed, {
+        subject: CHAINSEL_EVM_TEST_90000001,
+      })
     }
 
     // Fail router.ccipSend
@@ -538,6 +595,10 @@ describe('Router', () => {
         from: deployer.address,
         to: router.address,
         success: true,
+      })
+
+      assertLog(result.transactions, router.address, LogTypes.Uncursed, {
+        subject: CHAINSEL_EVM_TEST_90000001,
       })
     }
   })

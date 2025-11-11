@@ -14,6 +14,7 @@ import "../../lib/receiver/messages"
 import "../offramp/messages"
 import "@stdlib/lisp-lists"
 import "../offramp/types"
+import "events"
 
 
 const CONTRACT_VERSION = "0.0.7";
@@ -41,6 +42,12 @@ fun onInternalMessage(in: InMessage) {
             while (!subjects.empty()) {
                 val subject = subjects.next();  
                 rmn.cursedSubjects.curse(subject);
+                emit(
+                    CURSED_TOPIC,
+                    Cursed {
+                        subject: subject,
+                    }
+                )
             }
             st.rmnRemote = rmn.toCell();
             st.store();
@@ -67,6 +74,12 @@ fun onInternalMessage(in: InMessage) {
             while (!subjects.empty()) {
                 val subject = subjects.next();  
                 rmn.cursedSubjects.uncurse(subject);
+                emit(
+                    UNCURSED_TOPIC,
+                    Uncursed {
+                        subject: subject,
+                    }
+                )
             }
             st.rmnRemote = rmn.toCell();
             st.store();
@@ -172,7 +185,10 @@ fun onSetRamps(msg: Router_SetRamps, sender: address) {
         st.onRamps.set(selector, msg.onRamp);
     }
     st.store();
-    // TODO: emit(OnRampsSet)
+    emit(ON_RAMP_SET_TOPIC, OnRampSet {
+        destChainSelectors: msg.destChainSelectors,
+        onRamp: msg.onRamp,
+    });
 }
 
 fun onUpdateOffRamps(msg: Router_UpdateOffRamps, sender: address) {
@@ -186,6 +202,10 @@ fun onUpdateOffRamps(msg: Router_UpdateOffRamps, sender: address) {
             val selector = iter.next();
             st.offRamps.set(selector, offRampAdd);
         }
+        emit(OFF_RAMP_ADDED_TOPIC, OffRampAdded {
+            sourceChainSelectors: msg.sourceChainSelectorsAdd,
+            offRampAdded: offRampAdd,
+        });
     }
     if (msg.offRampRemove != null) {
         val offRampRemove = msg.offRampRemove!;
@@ -196,6 +216,10 @@ fun onUpdateOffRamps(msg: Router_UpdateOffRamps, sender: address) {
             assert (existing == offRampRemove) throw Router_Error.OffRampAddressMismatch;
             st.offRamps.delete(selector);
         }
+        emit(OFF_RAMP_REMOVED_TOPIC, OffRampRemoved {
+            sourceChainSelectors: msg.sourceChainSelectorsRemove,
+            offRampRemoved: offRampRemove,
+        });
     }
 
     // update RMN forwarding cache
