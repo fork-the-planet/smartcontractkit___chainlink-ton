@@ -89,6 +89,14 @@ fun onInternalMessage(in: InMessage) {
             }.upgrade(msg);
         }
         else => {
+            // attempt to handle Ownable messages
+            var st = lazy OnRamp_Storage.load();
+            val handled = st.ownable.onInternalMessage(in.senderAddress, in.body);
+            if (handled) {
+                st.store();
+                return;
+            }
+
             // ignore empty messages, "wrong opcode" for others
             assert (in.body.isEmpty()) throw 0xFFFF
         }
@@ -403,6 +411,18 @@ get fun destChainSelectors(): tuple? {
     val st = lazy OnRamp_Storage.load();
     var d = st.destChainConfigs;
     return keysLispList(d)!;
+}
+
+/// Gets the current owner of the contract.
+get fun owner(): address {
+    val st = lazy OnRamp_Storage.load();
+    return st.ownable.get_owner();
+}
+
+/// Gets the pending owner of the contract, if any.
+get fun pendingOwner(): address? {
+    val st = lazy OnRamp_Storage.load();
+    return st.ownable.get_pendingOwner();
 }
 
 get fun sendExecutorCode(): cell {
