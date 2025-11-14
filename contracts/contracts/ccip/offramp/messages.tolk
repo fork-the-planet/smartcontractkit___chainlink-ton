@@ -26,6 +26,7 @@ type OffRamp_InMessage =
     | OffRamp_UpdateCursedSubjects
     | OffRamp_SetDynamicConfig
     | OCR3Base_SetOCR3Config
+    | OffRamp_UpdateDeployables
     | Upgradeable_Upgrade
     | Withdrawable_Withdraw;
 
@@ -104,6 +105,12 @@ struct (0x95bc5a5c) OffRamp_SetDynamicConfig {
     queryId: uint64;
     feeQuoter: address;
     permissionlessExecutionThresholdSeconds: uint32,
+}
+
+struct (0xa015e0e2) OffRamp_UpdateDeployables {
+    queryId: uint64;
+    receiveExecutorCode: cell?;
+    merkleRootCode: cell?;
 }
 
 struct OffRamp_Costs{}
