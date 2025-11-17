@@ -128,8 +128,9 @@ func TestGetReportTxInfo(t *testing.T) {
 				},
 				GasPriceUpdates: common.SnakeData[ocr.GasPriceUpdate]{
 					{
-						DestChainSelector: 456,
-						UsdPerUnitGas:     big.NewInt(500000),
+						DestChainSelector:        456,
+						ExecutionGasPrice:        big.NewInt(500000),
+						DataAvailabilityGasPrice: big.NewInt(0),
 					},
 				},
 			},
@@ -261,8 +262,9 @@ func TestGetReportTxInfo(t *testing.T) {
 				},
 				GasPriceUpdates: common.SnakeData[ocr.GasPriceUpdate]{
 					{
-						DestChainSelector: 456,
-						UsdPerUnitGas:     big.NewInt(500000),
+						DestChainSelector:        456,
+						ExecutionGasPrice:        big.NewInt(500000),
+						DataAvailabilityGasPrice: big.NewInt(0),
 					},
 				},
 			},
