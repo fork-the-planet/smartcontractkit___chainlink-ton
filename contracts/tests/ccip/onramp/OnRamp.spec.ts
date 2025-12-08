@@ -101,7 +101,7 @@ describe('OnRamp - Current Version Tests', () => {
     CurrentVersionConstructor: or.OnRamp,
     deployCurrentContract: deployOnRampContract,
   })
-  currentVersionSpec.run()
+  currentVersionSpec.run('onramp')
 })
 
 describe('OnRamp - Opcodes', () => {
