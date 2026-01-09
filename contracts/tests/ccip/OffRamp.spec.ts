@@ -14,7 +14,7 @@ import {
   generateRandomContractId,
   generateRandomTonAddress,
   uint8ArrayToBigInt,
-  ZERO_ADDRESS,
+  WRAPPED_NATIVE,
 } from '../../src/utils'
 import { setupTestFeeQuoter } from './helpers/SetUp'
 import { MerkleHelper } from '../lib/merkle_proof/helpers/MerkleMultiProofHelper'
@@ -129,7 +129,7 @@ async function deployOffRampContract(
       merkleRootCode: beginCell().endCell(),
       receiveExecutorCode: beginCell().endCell(),
     },
-    feeQuoter: ZERO_ADDRESS,
+    feeQuoter: owner.address, // placeholder
     router: owner.address, // used to determine who can send RMN updates
     chainSelector: CHAINSEL_TON,
     permissionlessExecutionThresholdSeconds: PERMISSIONLESS_EXECUTION_THRESHOLD_SECONDS,
@@ -659,7 +659,7 @@ describe('OffRamp - Unit Tests', () => {
           owner: deployer.address,
           pendingOwner: null,
         },
-        wrappedNative: ZERO_ADDRESS,
+        wrappedNative: WRAPPED_NATIVE,
         onRamps: Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address()),
         offRamps: Dictionary.empty(Dictionary.Keys.BigUint(64), Dictionary.Values.Address()),
       }
