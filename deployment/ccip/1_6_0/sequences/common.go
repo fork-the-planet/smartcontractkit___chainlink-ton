@@ -13,7 +13,7 @@ import (
 	"github.com/smartcontractkit/chainlink-ccip/deployment/deploy"
 	"github.com/smartcontractkit/chainlink-ccip/deployment/fastcurse"
 	"github.com/smartcontractkit/chainlink-ccip/deployment/lanes"
-	utilscs "github.com/smartcontractkit/chainlink-ccip/deployment/utils/changesets"
+	"github.com/smartcontractkit/chainlink-ccip/deployment/utils/changesets"
 
 	tonstate "github.com/smartcontractkit/chainlink-ton/deployment/state"
 
@@ -29,7 +29,7 @@ func init() {
 	// Register separate adapters for each interface
 	deploy.GetRegistry().RegisterDeployer(chainsel.FamilyTon, v, &TonDeployAdapter{})
 	lanes.GetLaneAdapterRegistry().RegisterLaneAdapter(chainsel.FamilyTon, v, &TonLaneAdapter{})
-
+	deploy.GetTransferOwnershipRegistry().RegisterAdapter(chainsel.FamilyTon, v, &TonTransferOwnershipAdapter{})
 	curseAdapter := &TonCurseAdapter{}
 	fastcurse.GetCurseRegistry().RegisterNewCurse(
 		fastcurse.CurseRegistryInput{
@@ -39,8 +39,7 @@ func init() {
 			CurseSubjectAdapter: curseAdapter,
 		},
 	)
-
-	utilscs.GetRegistry().RegisterMCMSReader(chainsel.FamilyTon, &MCMSReaderAdapter{})
+	changesets.GetRegistry().RegisterMCMSReader(chainsel.FamilyTon, &MCMSReaderAdapter{})
 }
 
 // Standalone functions - can be used by any adapter without coupling
