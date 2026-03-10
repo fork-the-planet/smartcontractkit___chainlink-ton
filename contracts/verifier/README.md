@@ -1,6 +1,6 @@
 # Temporary Contract Verifier Utility
 
-This script provides a temporary contract verification workflow on top of `blueprint`. 
+This script provides a temporary contract verification workflow on top of `blueprint`.
 **Note:** This is a stopgap solution and should be replaced with proper CI-based verification during contract deployment.
 
 ## Overview
@@ -33,7 +33,6 @@ The script will:
    - Any type containing `timelock` (case-insensitive) → `mcms.RBACTimelock`
    - All others remain unchanged
 3. For each contract, run `blueprint verify` piping required input.
-   contracts/contracts/lib/deployable/namespace.tolk
 
 ## Notes
 
