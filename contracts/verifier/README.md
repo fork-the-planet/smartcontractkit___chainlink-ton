@@ -13,7 +13,7 @@ This script provides a temporary contract verification workflow on top of `bluep
 
 - `jq` installed for JSON parsing.
 - The `blueprint` CLI available and configured.
-- An `addresses_ref.json` file in this directory (data store with contract addresses).
+- An `address_ref.json` file in this directory (data store with contract addresses).
 - **WALLET_MNEMONIC** and **WALLET_VERSION** environment variables must be exported and configured with a wallet that has enough balance to run the verification process.
 - Ensure the wallet has been initialized for the corresponding network. **Do not use a mainnet (-239) address on testnet (-3)**, otherwise `blueprint` will derive the address incorrectly and the wallet may not be properly initialized.
 
@@ -27,7 +27,7 @@ From the `contracts/verifier` directory, run:
 
 The script will:
 
-1. Parse `addresses_ref.json` for contracts matching the TON chain selectors.
+1. Parse `address_ref.json` for contracts matching the TON chain selectors.
 2. Map contract types as follows:
    - Any type containing `ManyChainMultiSig` → `mcms.MCMS`
    - Any type containing `timelock` (case-insensitive) → `mcms.RBACTimelock`
