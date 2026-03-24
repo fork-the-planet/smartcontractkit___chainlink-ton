@@ -55,23 +55,25 @@ func (a *TonLaneAdapter) GetRouterAddress(ds datastore.DataStore, chainSelector 
 func (a *TonLaneAdapter) GetFeeQuoterDestChainConfig() lanes.FeeQuoterDestChainConfig {
 	return lanes.FeeQuoterDestChainConfig{
 		IsEnabled:                   true,
-		MaxDataBytes:                30_000,
+		MaxDataBytes:                2000,
 		MaxPerMsgGasLimit:           4_200_000_000, // 4_200_000_000 nano TON = 4.2 TON
-		DestGasOverhead:             300_000,
-		DestGasPerPayloadByteBase:   16,
+		DestGasOverhead:             242_500,
+		DestGasPerPayloadByteBase:   42,
 		ChainFamilySelector:         config.TVMFamilySelector,
 		DefaultTokenFeeUSDCents:     25,
 		DefaultTokenDestGasOverhead: 90_000,
 		DefaultTxGasLimit:           200_000,
 		NetworkFeeUSDCents:          10,
 		V1Params: &lanes.FeeQuoterV1Params{
-			MaxNumberOfTokensPerMsg:           10,
-			DestGasPerPayloadByteHigh:         40,
-			DestGasPerPayloadByteThreshold:    3000,
-			DestDataAvailabilityOverheadGas:   100,
-			DestGasPerDataAvailabilityByte:    16,
-			DestDataAvailabilityMultiplierBps: 1,
-			GasMultiplierWeiPerEth:            11e17,
+			MaxNumberOfTokensPerMsg:           1,
+			DestGasPerPayloadByteHigh:         42,
+			DestGasPerPayloadByteThreshold:    0,
+			DestDataAvailabilityOverheadGas:   0,
+			DestGasPerDataAvailabilityByte:    0,
+			DestDataAvailabilityMultiplierBps: 0,
+			GasMultiplierWeiPerEth:            1e18,
+			GasPriceStalenessThreshold:        90000,
+			EnforceOutOfOrder:                 true,
 		},
 	}
 }
