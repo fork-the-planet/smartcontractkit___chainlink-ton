@@ -75,6 +75,10 @@ func (a *TonLaneAdapter) GetFeeQuoterDestChainConfig() lanes.FeeQuoterDestChainC
 			GasPriceStalenessThreshold:        90_000,
 			EnforceOutOfOrder:                 true, // NOTE: TON's on-chain feequoter.DestChainConfig has no EnforceOutOfOrder field; this value is not propagated and TON effectively always enforces out-of-order.
 		},
+		V2Params: &lanes.FeeQuoterV2Params{
+			LinkFeeMultiplierPercent: 1,             // no-op for TON, but required non-zero for v2 config
+			USDPerUnitGas:            big.NewInt(1), // also no-op for TON, but required for v2 config
+		},
 	}
 }
 
