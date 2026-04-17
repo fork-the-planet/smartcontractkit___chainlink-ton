@@ -40,11 +40,19 @@ export const opcodes = {
   },
 }
 
-export const OFFRAMP_CONTRACT_VERSION = '1.6.0'
+export const OFFRAMP_CONTRACT_VERSION_PREV = '1.6.0'
+export const OFFRAMP_CONTRACT_VERSION = '1.6.1'
 
 export const FACILITY_NAME = 'link.chain.ton.ccip.OffRamp'
 export const FACILITY_ID = facilityId(crc32(FACILITY_NAME))
 export const ERROR_CODE = errorCode(crc32(FACILITY_NAME))
+
+export enum ExecutionState {
+  Untouched = 0,
+  InProgress,
+  Success,
+  Failure,
+}
 
 export enum OffRampError {
   MessageNotFromOwnedContract = 22100,
