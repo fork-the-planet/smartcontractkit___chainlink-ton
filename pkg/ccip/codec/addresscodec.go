@@ -48,6 +48,9 @@ func ToRawAddr(addr *address.Address) (RawAddr, error) {
 	if addr.IsAddrNone() {
 		return RawAddr{}, errors.New("cannot convert none address to raw format")
 	}
+	if addr.Type() == address.ExtAddress {
+		return RawAddr{}, errors.New("unsupported ExtAddress type")
+	}
 	// Standard TON addresses have exactly 32 bytes of data
 	if len(addr.Data()) != tvm.AddressDataLength {
 		return RawAddr{}, fmt.Errorf("invalid address data length: expected %d bytes, got %d", tvm.AddressDataLength, len(addr.Data()))
@@ -62,12 +65,20 @@ func NewAddressCodec() ccipocr3.ChainSpecificAddressCodec {
 	return addressCodec{}
 }
 
-// AddressBytesToStringWithBurning converts a byte slice representing a TON address into its string representation.
-// It first attempts to parse the bytes with `4 byte workchain (int32) + 32 byte data` TON address
-// If that fails, we expect user-friendly format (36 bytes): 1 byte flags + 1 byte workchain + 32 bytes data + 2 bytes CRC16, by validating the format and CRC16 checksum.
+// AddressBytesToTONAddressWithBurning converts a byte slice representing a TON address into an *address.Address.
+// This codec only supports standard TON addresses (MsgAddr std); variable-length (VarAddress) and
+// external addresses are not supported.
+//
+// It first attempts to parse the bytes as raw format: 4 byte workchain (int32) + 32 byte data.
+// If that fails, it attempts user-friendly format (36 bytes): 1 byte flags + 1 byte workchain + 32 bytes data + 2 bytes CRC16.
 // If parsing fails (invalid format, length, or CRC16), returns the zero address to indicate funds should be burned.
-// This is only used in the hot path in plugin (executecodec.go and msghasher.go) where we want to avoid errors and just burn funds if the address is invalid
-func AddressBytesToStringWithBurning(bytes []byte) *address.Address {
+// This is only used in the hot path in plugin (executecodec.go and msghasher.go) where we want to avoid errors and just burn funds if the address is invalid.
+//
+// Format disambiguation: the two 36-byte formats are safely distinguished because valid user-friendly
+// flag bytes (0x11, 0x51, 0x91, 0xD1) always produce an out-of-range int32 when interpreted as the
+// high byte of a big-endian workchain, causing raw-format parsing to fail workchain validation.
+// Only then is the input re-tried as a user-friendly address with CRC16 verification.
+func AddressBytesToTONAddressWithBurning(bytes []byte) *address.Address {
 	// First try parsing as raw format (4 byte workchain + 32 byte data)
 	if addr, err := AddressBytesToTONAddress(bytes); err == nil {
 		return addr
