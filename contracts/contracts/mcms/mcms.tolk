@@ -699,13 +699,13 @@ fun MCMS<T>.errorCode(local: uint16): uint16 {
 /// @dev Loads the MCMS contract data from persistent storage.
 fun MCMS<T>.load(context: T? = null, hooks: MCMS_Hooks<T>? = null): MCMS<T> {
     // Load the contract data from the persistent storage
-    var data = MCMS_Data.fromContractData();
+    val data = MCMS_Data.fromContractData();
 
     // Return the MCMS instance with loaded data and hooks
     return MCMS<T> {
-        data: data,
-        context: context,
-        hooks: hooks,
+        data,
+        context,
+        hooks,
     };
 }
 
@@ -751,7 +751,7 @@ fun MCMS<T>.setRoot(
     // an adversary keeps alternatively calling setRoot(root1), setRoot(root2),
     // setRoot(root1), ...
     {
-        var r = self.data.seenSignedHashes.get(signedHash);
+        val r = self.data.seenSignedHashes.get(signedHash);
         if (r.isFound) {
             throw MCMS_Error.SignedHashAlreadySeen;
         }
@@ -775,7 +775,6 @@ fun MCMS<T>.setRoot(
     }
 
     {
-        var i = 0;
         var signer: Signer;
         var prevSigner: uint256 = 0; // start with zero address
         var ss = signatures.iter();
@@ -1115,7 +1114,7 @@ fun MCMS<T>.setConfig(
         var groupChildrenCounts: map<uint8, uint8> = [];
         // first, we count the signers as children
         while (!signerGroupIterator.empty()) {
-            var g = signerGroupIterator.next();
+            val g = signerGroupIterator.next();
             if (g >= NUM_GROUPS) {
                 throw MCMS_Error.OutOfBoundsGroup;
             }
@@ -1215,13 +1214,13 @@ fun MCMS<T>.setConfig(
     // Reset the signers group iterator
     signerGroupIterator = signerGroups.iter();
     while (!signerAddrsIterator.empty()) {
-        var address = signerAddrsIterator.next();
+        val address = signerAddrsIterator.next();
         if (prevSigner >= address) {
             throw MCMS_Error.SignersAdderssesMustBeStrictlyIncreasing;
         }
 
         val group = signerGroupIterator.next();
-        var signer = Signer{address, index: i as uint8, group: group};
+        val signer = Signer{address, index: i as uint8, group};
         self.data.signers.set(address, signer);
         config.signers.set(i, signer);
 
@@ -1279,7 +1278,7 @@ fun MCMS<T>.setConfig(
 fun MCMS<T>.updateOpFinalizationTimeout(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     newOpFinalizationTimeout: uint32
 ): void {
@@ -1402,7 +1401,7 @@ fun MCMS<T>.submitErrorReport(
 fun MCMS<T>.transferOracleRole(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     newOracle: address
 ) {
@@ -1426,7 +1425,7 @@ fun MCMS<T>.transferOracleRole(
 fun MCMS<T>.cleanExpiredRoots(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     roots: SnakedCell<RootDescriptor>,
 ) {

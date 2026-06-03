@@ -6,7 +6,6 @@ import "errors"
 import "../fee_quoter/messages"
 import "../onramp/messages"
 import "../../lib/utils"
-import "../onramp/errors"
 import "../router/messages"
 import "../fee_quoter/types"
 import "@stdlib/gas-payments"
@@ -57,8 +56,8 @@ fun onBouncedMessage(in: InMessageBounced) {
     val msg = lazy CCIPSendExecutor_BouncedMessage.fromSlice(in.bouncedBody.skipBouncedPrefix());
     match (msg) {
         FeeQuoter_GetValidatedFee<RemainingBitsAndRefs> => {
-            var this = CCIPSendExecutor<CCIPSendExecutor_State_OnGoingFeeValidation>.load();
-            this.exitWithError(CCIPSendExecutor_Error.FeeQuoterBounce as int);
+            val this = CCIPSendExecutor<CCIPSendExecutor_State_OnGoingFeeValidation>.load();
+            this.exitWithError(CCIPSendExecutor_Error.FeeQuoterBounce);
         }
     }
 }
@@ -67,7 +66,7 @@ fun init(onrampSend: OnRamp_Send, config: CCIPSendExecutor_Config): CCIPSendExec
     val st = lazy CCIPSendExecutor_InitialData.fromCell(contract.getData());
     return CCIPSendExecutor<CCIPSendExecutor_State_Initialized> {
         id: st.id,
-        onrampSend: onrampSend,
+        onrampSend,
         addresses: CCIPSendExecutor_Addresses {
             onramp: st.onramp,
             feeQuoter: config.feeQuoter,
@@ -104,7 +103,7 @@ fun getValidatedFee(feeQuoter: address, onrampSend: OnRamp_Send) {
 
 fun CCIPSendExecutor<CCIPSendExecutor_State_OnGoingFeeValidation>.onMessageValidated(mutate self, msg: FeeQuoter_MessageValidated<RemainingBitsAndRefs>) {
     if (msg.fee.feeTokenAmount + Router_Costs.CCIPSend() > self.onrampSend.metadata.value) {
-        self.exitWithError(CCIPSendExecutor_Error.InsufficientFunds as int);
+        self.exitWithError(CCIPSendExecutor_Error.InsufficientFunds);
         return;
     }
     setGasLimitToMaximum();
@@ -156,7 +155,7 @@ fun CCIPSendExecutor<T>.exitWithError(self, error: uint256) {
         dest: self.addresses.load().onramp,
         body: OnRamp_ExecutorFinishedWithError {
             executorID: self.id,
-            error: error,
+            error,
             msg: self.onrampSend.msg,
             metadata: self.onrampSend.metadata,
         }

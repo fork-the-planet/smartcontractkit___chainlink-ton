@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-import "./../utils.tolk";
 
 const Ownable2Step_FACILITY_NAME = "link.chain.ton.lib.access.Ownable2Step";
 const Ownable2Step_FACILITY_ID = Ownable2Step_FACILITY_NAME.crc32() % 640 + 10;  // 498
@@ -56,7 +55,7 @@ type Ownable2Step_Messages =
 /// Handles `Ownable2Step` messages for ownership management.
 fun Ownable2Step.onInternalMessage(mutate self, sender: address, body: slice): bool {
     //This will fail with exitcode 63 if the message is not an Ownable2Step message
-    var msg = lazy Ownable2Step_Messages.fromSlice(body);
+    val msg = lazy Ownable2Step_Messages.fromSlice(body);
 
     match (msg) {
         Ownable2Step_TransferOwnership => {
@@ -72,13 +71,13 @@ fun Ownable2Step.onInternalMessage(mutate self, sender: address, body: slice): b
         },
 
         Ownable2Step_AcceptOwnership => {
-            var oldOwner = self.owner;
+            val oldOwner = self.owner;
             self.acceptOwnership(sender);
             val emitMsg = createExternalLogMessage({
                 dest: createAddressNone(),
                 body: Ownable2Step_OwnershipTransferred {
                     queryId: msg.queryId,
-                    oldOwner: oldOwner,
+                    oldOwner,
                     newOwner: sender
                 }
             });

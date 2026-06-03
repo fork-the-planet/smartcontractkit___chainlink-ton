@@ -125,7 +125,7 @@ fun Iterator<T>.empty(self): bool {
 
 @inline
 fun Iterator<T>.next(mutate self): T {
-    var (bits, refs) = self.data.remainingBitsAndRefsCount();
+    val (bits, refs) = self.data.remainingBitsAndRefsCount();
     if (bits == 0) {
         // for snakeData to be well formed, there should only be one reference
         assert(refs == 1, Utils_Error.InvalidData);
@@ -139,7 +139,7 @@ fun Iterator<T>.next(mutate self): T {
 @inline
 fun Iterator<T>.countBytes(self): int {
     val maxCells = 128;
-    val (cellsCount, dataBitsSize, _cellRefs) = self.data.calculateSizeStrict(maxCells);
+    val (_cellsCount, dataBitsSize, _cellRefs) = self.data.calculateSizeStrict(maxCells);
     assert(dataBitsSize % 8 == 0, Utils_Error.InvalidData);
     return dataBitsSize / 8;
 }
@@ -175,7 +175,7 @@ struct ArrayIterator<T> {
 }
 
 @inline
-fun ArrayIterator<T>.new(data: array<T>) {
+fun ArrayIterator<T>.new(data: array<T>): ArrayIterator<T> {
     return ArrayIterator<T> { data, len: data.size() };
 }
 
@@ -186,13 +186,13 @@ fun ArrayIterator<T>.empty(self): bool {
 
 @inline
 fun ArrayIterator<T>.next(mutate self): T {
-    var offset = self.pos;
+    val offset = self.pos;
     self.pos += 1;
     return self.data.get(offset);
 }
 
 @inline
-fun ArrayIterator<T>.size(self, elemSize: int): int {
+fun ArrayIterator<T>.size(self, _elemSize: int): int {
     // elemSize is ignored since we know exact size,
     // param is there for interface compatibility
     return self.len;
@@ -223,7 +223,7 @@ fun Bitmap256.has(self, index: int): bool {
 @inline
 fun countAddresses(data: cell): int {
     val maxCells = 128;
-    val (cellsCount, dataBitsSize, cellRefs) = data.calculateSizeStrict(maxCells);
+    val (_cellsCount, dataBitsSize, _cellRefs) = data.calculateSizeStrict(maxCells);
     assert(dataBitsSize % ADDR_KEY_LEN == 0, Utils_Error.InvalidData);
     return dataBitsSize / ADDR_KEY_LEN;
 }
@@ -233,7 +233,7 @@ fun keysLispList<K, V>(dict: map<K, V>): lisp_list<K> {
     var lisplist: lisp_list<K> = [];
     var entry = dict.findFirst();
     while (entry.isFound) {
-        var key = entry.getKey();
+        val key = entry.getKey();
         lisplist.prependHead(key);
         entry = dict.iterateNext(entry);
     } ;

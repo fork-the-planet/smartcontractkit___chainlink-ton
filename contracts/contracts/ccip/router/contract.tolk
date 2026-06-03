@@ -79,7 +79,7 @@ fun onInternalMessage(in: InMessage) {
         Router_RouteMessage => {
             val st = lazy Storage.load();
             val message: Any2TVMMessage = msg.message.load();
-            val expectedOffRamp = st.offRamps.mustGet(message.sourceChainSelector, Router_Error.SourceChainNotEnabled as int);
+            val expectedOffRamp = st.offRamps.mustGet(message.sourceChainSelector, Router_Error.SourceChainNotEnabled);
             assert(in.senderAddress == expectedOffRamp, Router_Error.SenderIsNotOffRamp);
             onRouteMessage(msg, message);
         }
@@ -129,15 +129,15 @@ fun onInternalMessage(in: InMessage) {
         }
         // Sender must be owner
         Withdrawable_Withdraw => {
-            var st = lazy Storage.load();
+            val st = lazy Storage.load();
             st.ownable.requireOwner(in.senderAddress);
             Withdrawable{
                 reserve: RESERVE
-            }.withdraw(msg, in.valueCoins);
+            }.withdraw(msg);
         }
         // Sender must be owner
         Upgradeable_Upgrade => {
-            var st = lazy Storage.load();
+            val st = lazy Storage.load();
             st.ownable.requireOwner(in.senderAddress);
             onUpgrade(msg);
         }
@@ -251,7 +251,7 @@ fun updateOffRamps(mutate st: Storage, offRampAdds: OffRamps?, offRampRemoves: O
         var iter = offRampRemoves.sourceChainSelectors.iter();
         while (!iter.empty()) {
             val selector = iter.next();
-            val existing = st.offRamps.mustGet(selector, Router_Error.OffRampNotSetForSelector as int);
+            val existing = st.offRamps.mustGet(selector, Router_Error.OffRampNotSetForSelector);
             assert (existing == offRampRemove) throw Router_Error.OffRampAddressMismatch;
             st.offRamps.delete(selector);
         }
@@ -310,7 +310,7 @@ fun onCCIPReceiveConfirm(msg: Router_CCIPReceiveConfirm, sender: address) {
     val st = lazy Storage.load();
     val sourceChainSelector = msg.execId.getSourceChainSelector();
 
-    val offRamp: address = st.offRamps.mustGet(sourceChainSelector, Router_Error.SourceChainNotEnabled as int);
+    val offRamp: address = st.offRamps.mustGet(sourceChainSelector, Router_Error.SourceChainNotEnabled);
 
     val confirmMsg = createMessage({
         bounce: true,
@@ -344,14 +344,14 @@ fun onCCIPReceiveConfirm(msg: Router_CCIPReceiveConfirm, sender: address) {
 fun onCCIPReceiveBounced(execId: ReceiveExecutorId, sender: address) {
     val st = Storage.load();
     val sourceChainSelector = execId.getSourceChainSelector();
-    val offRamp = st.offRamps.mustGet(sourceChainSelector, Router_Error.SourceChainNotEnabled as int);
+    val offRamp = st.offRamps.mustGet(sourceChainSelector, Router_Error.SourceChainNotEnabled);
 
     val receiveBounced = createMessage({
         bounce: true,
         value: OffRamp_Costs.receiveConfirmOrDeny(),
         dest: offRamp,
         body: OffRamp_CCIPReceiveBounced {
-            execId: execId,
+            execId,
             receiver: sender,
         }
     });
@@ -459,8 +459,8 @@ fun sendMessageValidationFailed(userAddress: address, error: uint256, msg: Cell<
         value: 0,
         dest: userAddress,
         body: Router_MessageValidationFailed {
-            error: error,
-            msg: msg,
+            error,
+            msg,
             context: userContext,
         }
     });
@@ -507,7 +507,7 @@ fun onRMNRemoteCurse(st: Storage, rmn: RMNRemote, msg: Router_RMNRemoteCurse) {
         emit(
             CURSED_TOPIC,
             Cursed {
-                subject: subject,
+                subject,
             }
         )
     }
@@ -541,7 +541,7 @@ fun onRMNRemoteUncurse(st: Storage, rmn: RMNRemote, msg: Router_RMNRemoteUncurse
         emit(
             UNCURSED_TOPIC,
             Uncursed {
-                subject: subject,
+                subject,
             }
         )
     }
@@ -611,8 +611,8 @@ fun sendMessageRejected(sender: address, queryID: uint64, error: uint256) {
         value: 0,
         dest: sender,
         body: Router_CCIPSendNACK {
-            queryID: queryID,
-            error: error,
+            queryID,
+            error,
         }
     });
 
@@ -631,7 +631,7 @@ fun onUpgrade(msg: Upgradeable_Upgrade) {
 Verifies that the caller corresponds to the onramp associated with the given chain selector
 */
 fun assertSenderIsOnRamp(st: Storage, destChainSelector: uint64, sender: address) {
-    val onRampAddress = st.onRamps.mustGet(destChainSelector, Router_Error.DestChainNotEnabled as int);
+    val onRampAddress = st.onRamps.mustGet(destChainSelector, Router_Error.DestChainNotEnabled);
     assert (sender == onRampAddress) throw Router_Error.NotOnRamp;
 }
 
@@ -652,7 +652,7 @@ get fun verifyNotCursed(subject: uint128): bool {
 
 get fun cursedSubjects(): lisp_list<uint128> {
     val st = lazy Storage.load();
-    var rmn = st.rmnRemote.load();
+    val rmn = st.rmnRemote.load();
     return keysLispList(rmn.cursedSubjects.data)!;
 }
 
@@ -694,12 +694,12 @@ get fun errorCode(local: uint16): uint16 {
 
 get fun onRamp(destChainSelector: uint64): address {
     val st = lazy Storage.load();
-    return st.onRamps.mustGet(destChainSelector, Router_Error.DestChainNotEnabled as int);
+    return st.onRamps.mustGet(destChainSelector, Router_Error.DestChainNotEnabled);
 }
 
 get fun offRamp(sourceChainSelector: uint64): address {
     val st = lazy Storage.load();
-    return st.offRamps.mustGet(sourceChainSelector, Router_Error.SourceChainNotEnabled as int);
+    return st.offRamps.mustGet(sourceChainSelector, Router_Error.SourceChainNotEnabled);
 }
 
 struct Ramp {
@@ -741,7 +741,7 @@ get fun offRamps(): lisp_list<Cell<Ramp>> {
 
 get fun destChainSelectors(): lisp_list<uint64> {
     val st = lazy Storage.load();
-    var d = st.onRamps;
+    val d = st.onRamps;
     return keysLispList(d)!;
 }
 

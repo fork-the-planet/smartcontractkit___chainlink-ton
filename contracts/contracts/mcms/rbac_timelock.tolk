@@ -641,13 +641,13 @@ fun Timelock<T>.errorCode(local: uint16): uint16 {
 /// Loads the Timelock contract data from persistent storage.
 fun Timelock<T>.load(context: T? = null, hooks: Timelock_Hooks<T>? = null): Timelock<T> {
     // Load the contract data from the persistent storage
-    var data = Timelock_Data.fromContractData();
+    val data = Timelock_Data.fromContractData();
 
     // Return the Timelock instance with loaded data and hooks
     return Timelock<T> {
-        data: data,
-        context: context,
-        hooks: hooks,
+        data,
+        context,
+        hooks,
     };
 }
 
@@ -878,7 +878,7 @@ fun Timelock<T>.schedule(mutate self, id: uint256, delay: uint32): void {
 ///
 /// - the caller must have the 'canceller' or 'admin' role.
 ///
-fun Timelock<T>.cancel(mutate self, sender: address, value: coins, queryId: uint64, id: uint256): void {
+fun Timelock<T>.cancel(mutate self, sender: address, _value: coins, queryId: uint64, id: uint256): void {
     assert(self.isInitialized()) throw Timelock_Error.ContractNotInitialized;
     self.onlyRoleOrAdminRole(CANCELLER_ROLE, sender);
     assert(self.isOperationPending(id)) throw Timelock_Error.OperationCanNotBeCancelled;
@@ -1021,7 +1021,7 @@ fun Timelock<T>.afterCall(mutate self, id: uint256): void {
 fun Timelock<T>.updateDelay(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     newDelay: uint32
 ): void {
@@ -1050,7 +1050,7 @@ fun Timelock<T>.updateDelay(
 fun Timelock<T>.updateOpFinalizationTimeout(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     newOpFinalizationTimeout: uint32
 ): void {
@@ -1092,7 +1092,7 @@ fun Timelock<T>.updateOpFinalizationTimeout(
 fun Timelock<T>.blockFunctionSelector(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     selector: uint32
 ): bool {
@@ -1111,7 +1111,7 @@ fun Timelock<T>.blockFunctionSelector(
         bounce: false,
         value: 0,
         dest: sender,
-        body: body,
+        body,
     });
     reply.send(SEND_MODE_REGULAR | SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
 
@@ -1127,7 +1127,7 @@ fun Timelock<T>.blockFunctionSelector(
 fun Timelock<T>.unblockFunctionSelector(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     selector: uint32,
 ): bool {
@@ -1146,7 +1146,7 @@ fun Timelock<T>.unblockFunctionSelector(
         bounce: false,
         value: 0,
         dest: sender,
-        body: body,
+        body,
     });
     reply.send(SEND_MODE_REGULAR | SEND_MODE_CARRY_ALL_REMAINING_MESSAGE_VALUE);
 
@@ -1216,7 +1216,7 @@ fun Timelock<T>.bypasserExecuteBatch(
 fun Timelock<T>.updateExecutorRoleCheck(
     mutate self,
     sender: address,
-    value: coins,
+    _value: coins,
     queryId: uint64,
     enabled: bool,
 ): void {
@@ -1365,7 +1365,7 @@ fun Timelock<T>.checkFunctionSelectorNotBlocked(self, data: slice): void {
 
     // Load the function selector from the message body
     val selector = data.loadMessageOp(); // 32-bit integer
-    var blocked = self.data.blockedFnSelectors.get(selector);
+    val blocked = self.data.blockedFnSelectors.get(selector);
 
     if (blocked.isFound) {
         throw Timelock_Error.SelectorIsBlocked;

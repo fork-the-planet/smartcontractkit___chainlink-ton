@@ -131,12 +131,12 @@ fun Upgradeable.upgrade(self, msg: Upgradeable_Upgrade) {
     val currentVersion = self.version();
     // Schedule the code to be changed after the compute phase
     contract.setCodePostponed(msg.code);
-    // Load the code dynamically
-    var cont = transformSliceToContinuation(msg.code.beginParse());
+    // SAFETY: Load the code dynamically. This is safe because we have checked the sender is authorized to upgrade the code
+    val cont = transformSliceToContinuation(msg.code.beginParse());
     setTvmRegisterC3(cont); // After this line, we are running the new code
     // Call the migrate function implemented by the new version
-    var c = contract.getData();
-    var newStorage = self.migrate(c, currentVersion);
+    val c = contract.getData();
+    val newStorage = self.migrate(c, currentVersion);
     contract.setData(newStorage);
     emit(UPGRADEABLE_UPGRADED_EVENT, Upgradeable_UpgradedEvent{
         code: msg.code,
