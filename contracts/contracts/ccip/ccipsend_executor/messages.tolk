@@ -9,8 +9,7 @@ type CCIPSendExecutor_InMessage =
     | FeeQuoter_MessageValidated<RemainingBitsAndRefs>
     | FeeQuoter_MessageValidationFailed<RemainingBitsAndRefs>
     | TokenRegistry_ReturnTokenInfo
-    | TokenPool_NotifySuccessfulLockOrBurn
-    ;
+    | TokenPool_LockOrBurnFinished;
 
 // crc32('CCIPSendExecutor_Execute')
 struct (0xaf3c62b3) CCIPSendExecutor_Execute {
