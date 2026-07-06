@@ -9,11 +9,11 @@ import "../../../lib/jetton/messages"
 import "../../../lib/jetton/jetton-utils"
 import "../../common/types"
 import "../../rmn_remote/lib"
-import "../token_pool"
-import "../types"
-import "../messages"
-import "../events"
-import "../errors"
+import "../lib/token_pool/entrypoint"
+import "../lib/token_pool/types"
+import "../lib/token_pool/messages"
+import "../lib/token_pool/events"
+import "../lib/token_pool/errors"
 
 import "messages"
 import "types"
@@ -31,10 +31,6 @@ contract LockReleaseLockboxTokenPool {
     incomingMessages:
         | TokenPool_InMessage
         | LockReleaseLockboxTokenPool_InMessage
-    outgoingMessages:
-        | TokenPool_OutMessage
-        | LockReleaseLockboxTokenPool_OutMessage
-    emittedEvents: TokenPool_Events
 }
 
 fun onInternalMessage(in: InMessage): void {
