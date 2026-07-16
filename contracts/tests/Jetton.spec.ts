@@ -3,10 +3,7 @@ import { Address, beginCell, Cell, Dictionary, Message, toNano } from '@ton/core
 import { SandboxContract, TreasuryContract, Blockchain } from '@ton/sandbox'
 import { JettonMinter, JettonWallet, JettonSender, OnrampMock } from '../wrappers/examples/jetton'
 import { sha256 } from '@ton/crypto'
-import { resolve } from 'path'
-import { readFileSync } from 'fs'
 import { execSync } from 'child_process'
-import { env } from 'process'
 import * as jetton from '../wrappers/jetton/JettonCode'
 
 const ONCHAIN_CONTENT_PREFIX = 0x00

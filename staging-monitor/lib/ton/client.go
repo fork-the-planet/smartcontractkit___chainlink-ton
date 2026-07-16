@@ -10,16 +10,15 @@ import (
 	"strings"
 	"time"
 
+	chainsel "github.com/smartcontractkit/chain-selectors"
+	"github.com/smartcontractkit/chainlink-ccip/deployment/testadapters"
+	"github.com/smartcontractkit/chainlink-common/pkg/logger"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/ton"
 	"github.com/xssnick/tonutils-go/ton/wallet"
 
 	"github.com/smartcontractkit/chainlink-ton/cciplib/ton/tvm"
-
-	chainsel "github.com/smartcontractkit/chain-selectors"
-
-	"github.com/smartcontractkit/chainlink-common/pkg/logger"
 
 	tonhash "github.com/smartcontractkit/chainlink-ton/cciplib/ton/hash"
 	"github.com/smartcontractkit/chainlink-ton/deployment/testadapter"
@@ -341,7 +340,9 @@ type mapStateProvider struct {
 	addresses map[datastore.ContractType]string
 }
 
-func (p *mapStateProvider) GetAddress(ty datastore.ContractType) (string, error) {
+var _ testadapters.StateProvider = (*mapStateProvider)(nil)
+
+func (p *mapStateProvider) GetAddress(ty datastore.ContractType, _ ...string) (string, error) {
 	addr, ok := p.addresses[ty]
 	if !ok {
 		return "", fmt.Errorf("address not found for contract type: %s", ty)
